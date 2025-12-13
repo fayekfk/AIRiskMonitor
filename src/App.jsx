@@ -27,7 +27,7 @@ const EMAILJS_CONFIG = {
 // ===================================
 // OPENAI (CHATGPT) CONFIGURATION
 // ===================================
-const OPENAI_API_KEY = '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';
+const OPENAI_API_KEY = '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';
 
 // ===================================
 // CONSTANTS & CONFIGURATION
@@ -244,21 +244,83 @@ const CSVUploader = ({ onDataLoaded, onLoadSampleData }) => {
         activity[header] = values[index] || '';
       });
 
-      // Parse into expected format, preserving ProjectName and ProjectCategory
+      // Parse into expected format with complete field structure per requirements:
+      // Activity Info: Activity_ID, Activity_Name, Work_Package
+      // Schedule: Planned_Start, Planned_Finish, Planned_Duration, Actual_Start, Actual_Finish, Remaining_Duration
+      // Baseline: Baseline_Start, Baseline_Finish, Baseline_Duration
+      // Progress: Percent_Complete, Status
+      // CPM Analysis: ES, EF, LS, LF, Total_Float_days, On_Critical_Path
+      // Dependencies: Predecessor_ID, Successor_ID, Dependency_Type
+      // Resources: Resource_ID, Role, FTE_Allocation, Resource_Max_FTE, Skill_Tags
+      // Risk Data: Probability, Delay_Impact_days, Cost_Impact_of_Risk
+
+      const plannedDuration = parseInt(activity.Planned_Duration || activity.Duration) || 5;
+      const percentComplete = parseInt(activity.Percent_Complete || activity.CompletionPercent) || 0;
+
       const parsedActivity = {
-        id: activity.ID || activity.Activity || `A-${i.toString().padStart(3, '0')}`,
-        name: activity.Name || activity.Description || `Activity ${i}`,
-        duration: parseInt(activity.Duration) || 5,
+        // Activity Info
+        Activity_ID: activity.Activity_ID || activity.ID || activity.Activity || `A-${i.toString().padStart(3, '0')}`,
+        Activity_Name: activity.Activity_Name || activity.Name || activity.Description || `Activity ${i}`,
+        Work_Package: activity.Work_Package || '',
+
+        // Schedule
+        Planned_Start: activity.Planned_Start || activity.StartDate || '2025-01-01',
+        Planned_Finish: activity.Planned_Finish || '',
+        Planned_Duration: plannedDuration,
+        Actual_Start: activity.Actual_Start || '',
+        Actual_Finish: activity.Actual_Finish || '',
+        Remaining_Duration: parseInt(activity.Remaining_Duration) || Math.round(plannedDuration * (1 - percentComplete / 100)),
+
+        // Baseline
+        Baseline_Start: activity.Baseline_Start || activity.Planned_Start || activity.StartDate || '',
+        Baseline_Finish: activity.Baseline_Finish || activity.Planned_Finish || '',
+        Baseline_Duration: parseInt(activity.Baseline_Duration) || plannedDuration,
+
+        // Progress
+        Percent_Complete: percentComplete,
+        Status: activity.Status || 'not-started',
+
+        // CPM Analysis
+        ES: parseInt(activity.ES) || 0,
+        EF: parseInt(activity.EF) || 0,
+        LS: parseInt(activity.LS) || 0,
+        LF: parseInt(activity.LF) || 0,
+        Total_Float_days: parseInt(activity.Total_Float_days || activity.Float) || 0,
+        On_Critical_Path: activity.On_Critical_Path === 'Yes' || activity.On_Critical_Path === 'true' ||
+                          activity.IsCriticalPath === 'Yes' || activity.IsCriticalPath === 'true',
+
+        // Dependencies
+        Predecessor_ID: activity.Predecessor_ID || (activity.Dependencies ? activity.Dependencies.split('|').filter(d => d).join(';') : ''),
+        Successor_ID: activity.Successor_ID || '',
+        Dependency_Type: activity.Dependency_Type || 'FS',
+
+        // Resources
+        Resource_ID: activity.Resource_ID || activity.Resource || 'R-001',
+        Role: activity.Role || '',
+        FTE_Allocation: parseInt(activity.FTE_Allocation || activity.Allocation) || 100,
+        Resource_Max_FTE: parseFloat(activity.Resource_Max_FTE) || 1.0,
+        Skill_Tags: activity.Skill_Tags || '',
+
+        // Risk Data
+        Probability: parseFloat(activity.Probability) || 0.5,
+        Delay_Impact_days: parseInt(activity.Delay_Impact_days || activity.DaysDelayed) || 0,
+        Cost_Impact_of_Risk: parseFloat(activity.Cost_Impact_of_Risk) || 0,
+
+        // Legacy field mappings for backward compatibility
+        id: activity.Activity_ID || activity.ID || activity.Activity || `A-${i.toString().padStart(3, '0')}`,
+        name: activity.Activity_Name || activity.Name || activity.Description || `Activity ${i}`,
+        duration: plannedDuration,
         dependencies: activity.Dependencies ? activity.Dependencies.split('|').filter(d => d) : [],
-        resource: activity.Resource || 'R-001',
-        startDate: activity.StartDate || '2025-01-01',
+        resource: activity.Resource_ID || activity.Resource || 'R-001',
+        startDate: activity.Planned_Start || activity.StartDate || '2025-01-01',
         status: activity.Status || 'not-started',
-        daysDelayed: parseInt(activity.DaysDelayed) || 0,
-        allocation: parseInt(activity.Allocation) || 100,
-        completionPercent: parseInt(activity.CompletionPercent) || 0,
+        daysDelayed: parseInt(activity.Delay_Impact_days || activity.DaysDelayed) || 0,
+        allocation: parseInt(activity.FTE_Allocation || activity.Allocation) || 100,
+        completionPercent: percentComplete,
         type: activity.Type || 'General',
-        isCriticalPath: activity.IsCriticalPath === 'Yes' || activity.IsCriticalPath === 'true',
-        float: parseInt(activity.Float) || 0
+        isCriticalPath: activity.On_Critical_Path === 'Yes' || activity.On_Critical_Path === 'true' ||
+                        activity.IsCriticalPath === 'Yes' || activity.IsCriticalPath === 'true',
+        float: parseInt(activity.Total_Float_days || activity.Float) || 0
       };
 
       // Preserve ProjectName and ProjectCategory for grouping
@@ -309,9 +371,18 @@ const CSVUploader = ({ onDataLoaded, onLoadSampleData }) => {
   };
 
   const downloadTemplate = () => {
-    const template = `ID,Name,Duration,Dependencies,Resource,StartDate,Status,DaysDelayed,Allocation,CompletionPercent,Type
-A-001,Example Task 1,5,,R-001,2025-01-01,not-started,0,100,0,Planning
-A-002,Example Task 2,10,A-001,R-002,2025-01-06,not-started,0,100,0,Development`;
+    // Complete field structure per requirements:
+    // Activity Info: Activity_ID, Activity_Name, Work_Package
+    // Schedule: Planned_Start, Planned_Finish, Planned_Duration, Actual_Start, Actual_Finish, Remaining_Duration
+    // Baseline: Baseline_Start, Baseline_Finish, Baseline_Duration
+    // Progress: Percent_Complete, Status
+    // CPM Analysis: ES, EF, LS, LF, Total_Float_days, On_Critical_Path
+    // Dependencies: Predecessor_ID, Successor_ID, Dependency_Type
+    // Resources: Resource_ID, Role, FTE_Allocation, Resource_Max_FTE, Skill_Tags
+    // Risk Data: Probability, Delay_Impact_days, Cost_Impact_of_Risk
+    const template = `Activity_ID,Activity_Name,Work_Package,Planned_Start,Planned_Finish,Planned_Duration,Actual_Start,Actual_Finish,Remaining_Duration,Baseline_Start,Baseline_Finish,Baseline_Duration,Percent_Complete,Status,ES,EF,LS,LF,Total_Float_days,On_Critical_Path,Predecessor_ID,Successor_ID,Dependency_Type,Resource_ID,Role,FTE_Allocation,Resource_Max_FTE,Skill_Tags,Probability,Delay_Impact_days,Cost_Impact_of_Risk
+A-001,Project Kickoff,WP-001,2025-01-06,2025-01-10,5,2025-01-06,2025-01-10,0,2025-01-06,2025-01-10,5,100,completed,0,5,0,5,0,Yes,,A-002,FS,PM-001,Project Manager,100,1.0,ProjectMgmt;Leadership,0.1,0,0
+A-002,Requirements Analysis,WP-002,2025-01-13,2025-01-24,12,2025-01-13,,8,2025-01-13,2025-01-24,12,35,in-progress,5,17,5,17,0,Yes,A-001,A-003;A-004,FS,BA-001,Business Analyst,100,1.0,BusinessAnalysis;Requirements,0.4,3,8000`;
 
     const blob = new Blob([template], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -325,7 +396,8 @@ A-002,Example Task 2,10,A-001,R-002,2025-01-06,not-started,0,100,0,Development`;
   const downloadSampleData = (projectIndex = null) => {
     // If specific project index provided, download just that project
     // Otherwise download a combined file with all projects
-    const header = 'ProjectName,ProjectCategory,ID,Name,Duration,Dependencies,Resource,StartDate,Status,DaysDelayed,Allocation,CompletionPercent,Type,IsCriticalPath,Float';
+    // Complete field structure per requirements
+    const header = 'ProjectName,ProjectCategory,Activity_ID,Activity_Name,Work_Package,Planned_Start,Planned_Finish,Planned_Duration,Actual_Start,Actual_Finish,Remaining_Duration,Baseline_Start,Baseline_Finish,Baseline_Duration,Percent_Complete,Status,ES,EF,LS,LF,Total_Float_days,On_Critical_Path,Predecessor_ID,Successor_ID,Dependency_Type,Resource_ID,Role,FTE_Allocation,Resource_Max_FTE,Skill_Tags,Probability,Delay_Impact_days,Cost_Impact_of_Risk';
 
     let csvLines = [header];
 
@@ -333,23 +405,47 @@ A-002,Example Task 2,10,A-001,R-002,2025-01-06,not-started,0,100,0,Development`;
 
     projectsToExport.forEach(proj => {
       proj.activities.forEach(act => {
-        const deps = Array.isArray(act.dependencies) ? act.dependencies.join('|') : '';
+        // Calculate Planned_Finish based on Planned_Start and duration
+        const plannedFinish = act.Planned_Finish || '';
+        const actualStart = act.Actual_Start || (act.status !== 'not-started' ? act.Planned_Start : '');
+        const actualFinish = act.Actual_Finish || (act.status === 'completed' ? act.Planned_Finish : '');
+        const remainingDuration = act.Remaining_Duration !== undefined ? act.Remaining_Duration :
+          Math.round(act.Planned_Duration * (1 - (act.Percent_Complete || 0) / 100));
+
         csvLines.push([
           `"${proj.name}"`,
           `"${proj.category}"`,
-          act.id,
-          `"${act.name}"`,
-          act.duration,
-          deps,
-          act.resource,
-          act.startDate,
-          act.status,
-          act.daysDelayed || 0,
-          act.allocation || 100,
-          act.completionPercent || 0,
-          act.type || '',
-          act.isCriticalPath ? 'Yes' : 'No',
-          act.float || 0
+          act.Activity_ID || act.id,
+          `"${act.Activity_Name || act.name}"`,
+          act.Work_Package || '',
+          act.Planned_Start || act.startDate,
+          plannedFinish,
+          act.Planned_Duration || act.duration,
+          actualStart,
+          actualFinish,
+          remainingDuration,
+          act.Baseline_Start || act.Planned_Start || act.startDate,
+          act.Baseline_Finish || plannedFinish,
+          act.Baseline_Duration || act.Planned_Duration || act.duration,
+          act.Percent_Complete !== undefined ? act.Percent_Complete : (act.completionPercent || 0),
+          act.Status || act.status,
+          act.ES || 0,
+          act.EF || 0,
+          act.LS || 0,
+          act.LF || 0,
+          act.Total_Float_days !== undefined ? act.Total_Float_days : (act.float || 0),
+          act.On_Critical_Path !== undefined ? (act.On_Critical_Path ? 'Yes' : 'No') : (act.isCriticalPath ? 'Yes' : 'No'),
+          act.Predecessor_ID || '',
+          act.Successor_ID || '',
+          act.Dependency_Type || 'FS',
+          act.Resource_ID || act.resource,
+          act.Role || '',
+          act.FTE_Allocation !== undefined ? act.FTE_Allocation : (act.allocation || 100),
+          act.Resource_Max_FTE || 1.0,
+          `"${act.Skill_Tags || ''}"`,
+          act.Probability || 0.5,
+          act.Delay_Impact_days || 0,
+          act.Cost_Impact_of_Risk || 0
         ].join(','));
       });
     });
@@ -376,14 +472,15 @@ A-002,Example Task 2,10,A-001,R-002,2025-01-06,not-started,0,100,0,Development`;
         style={{ display: 'none' }}
       />
       
-      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'nowrap', justifyContent: 'center' }}>
         <button
           className="csv-upload-btn"
           onClick={() => fileInputRef.current?.click()}
           disabled={isLoading}
           style={{
-            padding: '0.75rem 1.5rem',
-            fontSize: '0.9rem'
+            padding: '0.6rem 1rem',
+            fontSize: '0.8rem',
+            whiteSpace: 'nowrap'
           }}
         >
           {isLoading ? (
@@ -393,7 +490,7 @@ A-002,Example Task 2,10,A-001,R-002,2025-01-06,not-started,0,100,0,Development`;
             </>
           ) : (
             <>
-              📁 Upload Project CSV
+              📁 Upload CSV
             </>
           )}
         </button>
@@ -401,22 +498,23 @@ A-002,Example Task 2,10,A-001,R-002,2025-01-06,not-started,0,100,0,Development`;
         <button
           onClick={downloadTemplate}
           style={{
-            padding: '0.75rem 1.25rem',
+            padding: '0.6rem 1rem',
             background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
             color: 'white',
             border: 'none',
             borderRadius: '10px',
             cursor: 'pointer',
             fontWeight: '600',
-            fontSize: '0.85rem',
+            fontSize: '0.8rem',
             transition: 'all 0.2s ease',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.375rem',
-            boxShadow: '0 2px 8px rgba(71, 85, 105, 0.25)'
+            gap: '0.25rem',
+            boxShadow: '0 2px 8px rgba(71, 85, 105, 0.25)',
+            whiteSpace: 'nowrap'
           }}
         >
-          📄 CSV Template
+          📄 Template
         </button>
 
         <div style={{ position: 'relative', display: 'inline-block' }}>
@@ -430,40 +528,42 @@ A-002,Example Task 2,10,A-001,R-002,2025-01-06,not-started,0,100,0,Development`;
               e.target.value = '';
             }}
             style={{
-              padding: '0.75rem 1.25rem',
+              padding: '0.6rem 1rem',
               background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
               color: 'white',
               border: 'none',
               borderRadius: '10px',
               cursor: 'pointer',
               fontWeight: '600',
-              fontSize: '0.85rem',
+              fontSize: '0.8rem',
               appearance: 'none',
-              paddingRight: '2rem',
-              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)'
+              paddingRight: '1.75rem',
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
+              whiteSpace: 'nowrap'
             }}
             defaultValue=""
           >
-            <option value="" disabled style={{ color: '#333' }}>📥 Download Sample CSV</option>
-            <option value="all" style={{ color: '#333' }}>📦 All Projects (7 projects)</option>
+            <option value="" disabled style={{ color: '#333' }}>📥 Download CSV</option>
+            <option value="all" style={{ color: '#333' }}>📦 All Projects (7)</option>
             <option disabled style={{ color: '#999' }}>─── Healthcare ───</option>
-            <option value="1" style={{ color: '#333' }}>🏥 Hospital EMR Implementation</option>
-            <option value="2" style={{ color: '#333' }}>💊 Clinical Trial - Cardiology</option>
-            <option value="6" style={{ color: '#333' }}>📱 Healthcare Mobile App</option>
-            <option disabled style={{ color: '#999' }}>─── Software Dev ───</option>
-            <option value="0" style={{ color: '#333' }}>💻 Enterprise CRM Platform</option>
+            <option value="1" style={{ color: '#333' }}>🏥 Hospital EMR</option>
+            <option value="2" style={{ color: '#333' }}>💊 Clinical Trial</option>
+            <option value="6" style={{ color: '#333' }}>📱 Healthcare App</option>
+            <option disabled style={{ color: '#999' }}>─── Software ───</option>
+            <option value="0" style={{ color: '#333' }}>💻 Enterprise CRM</option>
             <option disabled style={{ color: '#999' }}>─── Other ───</option>
-            <option value="3" style={{ color: '#333' }}>🏗️ Office Building Construction</option>
-            <option value="4" style={{ color: '#333' }}>☁️ Cloud Migration (AWS)</option>
-            <option value="5" style={{ color: '#333' }}>📣 Product Launch Campaign</option>
+            <option value="3" style={{ color: '#333' }}>🏗️ Construction</option>
+            <option value="4" style={{ color: '#333' }}>☁️ Cloud Migration</option>
+            <option value="5" style={{ color: '#333' }}>📣 Marketing</option>
           </select>
           <span style={{
             position: 'absolute',
-            right: '0.75rem',
+            right: '0.5rem',
             top: '50%',
             transform: 'translateY(-50%)',
             pointerEvents: 'none',
-            color: 'white'
+            color: 'white',
+            fontSize: '0.7rem'
           }}>▼</span>
         </div>
 
@@ -471,22 +571,23 @@ A-002,Example Task 2,10,A-001,R-002,2025-01-06,not-started,0,100,0,Development`;
           <button
             onClick={onLoadSampleData}
             style={{
-              padding: '0.75rem 1.25rem',
+              padding: '0.6rem 1rem',
               background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
               color: 'white',
               border: 'none',
               borderRadius: '10px',
               cursor: 'pointer',
               fontWeight: '600',
-              fontSize: '0.85rem',
+              fontSize: '0.8rem',
               transition: 'all 0.2s ease',
               display: 'flex',
               alignItems: 'center',
-              gap: '0.375rem',
-              boxShadow: '0 2px 8px rgba(139, 92, 246, 0.25)'
+              gap: '0.25rem',
+              boxShadow: '0 2px 8px rgba(139, 92, 246, 0.25)',
+              whiteSpace: 'nowrap'
             }}
           >
-            🚀 Load 7 Sample Projects
+            🚀 Load Samples
           </button>
         )}
       </div>
@@ -641,23 +742,42 @@ const RawDataModal = ({ projectData, onClose }) => {
   if (!projectData) return null;
 
   const exportRawData = () => {
-    const headers = ['ID', 'Name', 'Duration', 'Dependencies', 'Resource', 'Start Date', 'Status', 'Days Delayed', 'Allocation %', 'Completion %', 'Critical Path', 'Float', 'Type'];
+    // Complete field structure per requirements
+    const headers = ['Activity_ID', 'Activity_Name', 'Work_Package', 'Planned_Start', 'Planned_Finish', 'Planned_Duration', 'Actual_Start', 'Actual_Finish', 'Remaining_Duration', 'Baseline_Start', 'Baseline_Finish', 'Baseline_Duration', 'Percent_Complete', 'Status', 'ES', 'EF', 'LS', 'LF', 'Total_Float_days', 'On_Critical_Path', 'Predecessor_ID', 'Successor_ID', 'Dependency_Type', 'Resource_ID', 'Role', 'FTE_Allocation', 'Resource_Max_FTE', 'Skill_Tags', 'Probability', 'Delay_Impact_days', 'Cost_Impact_of_Risk'];
     const csvContent = [
       headers.join(','),
       ...projectData.activities.map(act => [
-        act.id,
-        `"${act.name}"`,
-        act.duration,
-        `"${(act.dependencies || []).join('; ')}"`,
-        act.resource || '',
-        act.startDate || '',
-        act.status || '',
-        act.daysDelayed || 0,
-        act.allocation || 100,
-        act.completionPercent || 0,
-        act.isCriticalPath ? 'Yes' : 'No',
-        act.float || 0,
-        act.type || ''
+        act.Activity_ID || act.id,
+        `"${act.Activity_Name || act.name}"`,
+        act.Work_Package || '',
+        act.Planned_Start || act.startDate || '',
+        act.Planned_Finish || '',
+        act.Planned_Duration || act.duration,
+        act.Actual_Start || '',
+        act.Actual_Finish || '',
+        act.Remaining_Duration !== undefined ? act.Remaining_Duration : Math.round((act.Planned_Duration || act.duration) * (1 - (act.Percent_Complete || act.completionPercent || 0) / 100)),
+        act.Baseline_Start || act.Planned_Start || act.startDate || '',
+        act.Baseline_Finish || act.Planned_Finish || '',
+        act.Baseline_Duration || act.Planned_Duration || act.duration,
+        act.Percent_Complete !== undefined ? act.Percent_Complete : (act.completionPercent || 0),
+        act.Status || act.status || '',
+        act.ES || 0,
+        act.EF || 0,
+        act.LS || 0,
+        act.LF || 0,
+        act.Total_Float_days !== undefined ? act.Total_Float_days : (act.float || 0),
+        (act.On_Critical_Path !== undefined ? act.On_Critical_Path : act.isCriticalPath) ? 'Yes' : 'No',
+        act.Predecessor_ID || '',
+        act.Successor_ID || '',
+        act.Dependency_Type || 'FS',
+        act.Resource_ID || act.resource || '',
+        act.Role || '',
+        act.FTE_Allocation !== undefined ? act.FTE_Allocation : (act.allocation || 100),
+        act.Resource_Max_FTE || 1.0,
+        `"${act.Skill_Tags || ''}"`,
+        act.Probability || 0.5,
+        act.Delay_Impact_days !== undefined ? act.Delay_Impact_days : (act.daysDelayed || 0),
+        act.Cost_Impact_of_Risk || 0
       ].join(','))
     ].join('\n');
 
@@ -781,49 +901,72 @@ const RawDataModal = ({ projectData, onClose }) => {
           </button>
         </div>
 
-        {/* Data Table */}
+        {/* Data Table - Full 27 fields */}
         <div style={{ maxHeight: '400px', overflowY: 'auto', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+          <table style={{ minWidth: '2000px', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
             <thead>
               <tr style={{ background: '#f1f5f9', position: 'sticky', top: 0 }}>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0' }}>ID</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0' }}>Activity Name</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0' }}>Duration</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0' }}>Dependencies</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0' }}>Resource</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0' }}>Status</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0' }}>Delayed</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0' }}>Completion</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0' }}>Critical</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'left', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>ID</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'left', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>Activity Name</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>Duration</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'left', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>Dependencies</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'left', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>Resource</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>Start Date</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>Status</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>Delayed</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>Alloc%</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>Comp%</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>Type</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>Critical</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>Float</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#1e40af', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap', background: '#dbeafe' }}>ES</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#1e40af', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap', background: '#dbeafe' }}>EF</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#1e40af', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap', background: '#dbeafe' }}>LS</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#1e40af', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap', background: '#dbeafe' }}>LF</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#7c3aed', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap', background: '#ede9fe' }}>Pred</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#7c3aed', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap', background: '#ede9fe' }}>Succ</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#7c3aed', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap', background: '#ede9fe' }}>Dep Type</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#0d9488', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap', background: '#ccfbf1' }}>Max FTE</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'left', fontWeight: '600', color: '#0d9488', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap', background: '#ccfbf1' }}>Skills</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#dc2626', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap', background: '#fef2f2' }}>Prob%</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'center', fontWeight: '600', color: '#dc2626', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap', background: '#fef2f2' }}>Delay Impact</th>
+                <th style={{ padding: '0.5rem 0.375rem', textAlign: 'right', fontWeight: '600', color: '#dc2626', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap', background: '#fef2f2' }}>Cost Impact</th>
               </tr>
             </thead>
             <tbody>
               {projectData.activities.map((act, index) => (
                 <tr key={act.id} style={{ background: index % 2 === 0 ? 'white' : '#fafafa', borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '0.5rem', fontWeight: '600', color: '#3b82f6' }}>{act.id}</td>
-                  <td style={{ padding: '0.5rem', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{act.name}</td>
-                  <td style={{ padding: '0.5rem', textAlign: 'center' }}>{act.duration}d</td>
-                  <td style={{ padding: '0.5rem', color: '#6b7280', fontSize: '0.7rem' }}>{(act.dependencies || []).join(', ') || '-'}</td>
-                  <td style={{ padding: '0.5rem' }}>{act.resource || '-'}</td>
-                  <td style={{ padding: '0.5rem', textAlign: 'center' }}>{getStatusBadge(act.status)}</td>
-                  <td style={{ padding: '0.5rem', textAlign: 'center', color: act.daysDelayed > 0 ? '#dc2626' : '#10b981', fontWeight: '600' }}>
+                  <td style={{ padding: '0.375rem', fontWeight: '600', color: '#3b82f6', whiteSpace: 'nowrap' }}>{act.id}</td>
+                  <td style={{ padding: '0.375rem', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={act.name}>{act.name}</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center' }}>{act.duration}d</td>
+                  <td style={{ padding: '0.375rem', color: '#6b7280', fontSize: '0.65rem', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={(act.dependencies || []).join(', ')}>{(act.dependencies || []).join(', ') || '-'}</td>
+                  <td style={{ padding: '0.375rem', whiteSpace: 'nowrap' }}>{act.resource || '-'}</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center', whiteSpace: 'nowrap' }}>{act.startDate || '-'}</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center' }}>{getStatusBadge(act.status)}</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center', color: act.daysDelayed > 0 ? '#dc2626' : '#10b981', fontWeight: '600' }}>
                     {act.daysDelayed > 0 ? `+${act.daysDelayed}d` : '0d'}
                   </td>
-                  <td style={{ padding: '0.5rem', textAlign: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', justifyContent: 'center' }}>
-                      <div style={{ width: '40px', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
-                        <div style={{ width: `${act.completionPercent || 0}%`, height: '100%', background: '#10b981', borderRadius: '3px' }}></div>
-                      </div>
-                      <span style={{ fontSize: '0.65rem', color: '#64748b' }}>{act.completionPercent || 0}%</span>
-                    </div>
+                  <td style={{ padding: '0.375rem', textAlign: 'center' }}>{act.allocation || 100}%</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center' }}>
+                    <span style={{ fontSize: '0.65rem', color: '#64748b' }}>{act.completionPercent || 0}%</span>
                   </td>
-                  <td style={{ padding: '0.5rem', textAlign: 'center' }}>
-                    {act.isCriticalPath ? (
-                      <span style={{ color: '#dc2626', fontWeight: '700' }}>⚠️</span>
-                    ) : (
-                      <span style={{ color: '#d1d5db' }}>-</span>
-                    )}
+                  <td style={{ padding: '0.375rem', textAlign: 'center', fontSize: '0.65rem' }}>{act.type || '-'}</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center' }}>
+                    {act.isCriticalPath ? <span style={{ color: '#dc2626', fontWeight: '700' }}>⚠️</span> : <span style={{ color: '#d1d5db' }}>-</span>}
                   </td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center' }}>{act.float || 0}</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center', background: '#f0f9ff' }}>{act.ES || 0}</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center', background: '#f0f9ff' }}>{act.EF || 0}</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center', background: '#f0f9ff' }}>{act.LS || 0}</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center', background: '#f0f9ff' }}>{act.LF || 0}</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center', background: '#faf5ff', fontSize: '0.65rem' }}>{act.Predecessor_ID || '-'}</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center', background: '#faf5ff', fontSize: '0.65rem' }}>{act.Successor_ID || '-'}</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center', background: '#faf5ff' }}>{act.Dependency_Type || 'FS'}</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center', background: '#f0fdfa' }}>{act.Resource_Max_FTE || 1.0}</td>
+                  <td style={{ padding: '0.375rem', background: '#f0fdfa', fontSize: '0.6rem', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={act.Skill_Tags}>{act.Skill_Tags || '-'}</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center', background: '#fef2f2' }}>{((act.Probability || 0.5) * 100).toFixed(0)}%</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'center', background: '#fef2f2' }}>{act.Delay_Impact_days || 0}d</td>
+                  <td style={{ padding: '0.375rem', textAlign: 'right', background: '#fef2f2', fontWeight: '500' }}>${(act.Cost_Impact_of_Risk || 0).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -911,9 +1054,31 @@ ${factorsText}
     Planned Duration:     ${risk?.activity?.duration || 0} days
     Assigned Resource:    ${risk?.activity?.resource || 'Unassigned'}
     Resource Utilization: ${risk?.activity?.allocation || 100}%
+    Max FTE:              ${risk?.activity?.Resource_Max_FTE || 1.0}
     On Critical Path:     ${risk?.activity?.isCriticalPath ? '⚡ Yes' : 'No'}
     Schedule Buffer:      ${risk?.activity?.float || 0} days
     Progress:             ${risk?.activity?.percentComplete || 0}%
+
+📅 CPM SCHEDULE DATA
+───────────────────────────────────────────────────────────────
+    Early Start (ES):     ${risk?.activity?.ES || 0}
+    Early Finish (EF):    ${risk?.activity?.EF || 0}
+    Late Start (LS):      ${risk?.activity?.LS || 0}
+    Late Finish (LF):     ${risk?.activity?.LF || 0}
+
+🔗 DEPENDENCY DATA
+───────────────────────────────────────────────────────────────
+    Predecessors:         ${risk?.activity?.Predecessor_ID || 'None'}
+    Successors:           ${risk?.activity?.Successor_ID || 'None'}
+    Dependency Type:      ${risk?.activity?.Dependency_Type || 'FS'}
+    Skill Tags:           ${risk?.activity?.Skill_Tags || 'Not specified'}
+
+⚠️ RISK METRICS
+───────────────────────────────────────────────────────────────
+    Probability:          ${((risk?.activity?.Probability || 0.5) * 100).toFixed(0)}%
+    Delay Impact:         ${risk?.activity?.Delay_Impact_days || 0} days
+    Cost Impact:          $${(risk?.activity?.Cost_Impact_of_Risk || 0).toLocaleString()}
+    Expected Monetary Value: $${((risk?.activity?.Probability || 0.5) * (risk?.activity?.Cost_Impact_of_Risk || 0)).toLocaleString()}
 
 ${aiInsight ? `
 🤖 AI-GENERATED EXECUTIVE INSIGHT
@@ -976,18 +1141,22 @@ ${aiInsight}
 
   // Generate HTML email content
   const generateHtmlMessage = () => {
-    const factorsHtml = risk?.factors ? Object.entries(risk.factors).map(([factor, value]) => {
-      const barWidth = Math.round(value);
+    const emv = (risk?.activity?.Probability || 0.5) * (risk?.activity?.Cost_Impact_of_Risk || 0);
+
+    const factorsHtml = risk?.factors ? Object.entries(risk.factors).map(([factor, value], index) => {
       const barColor = value >= 70 ? '#dc2626' : value >= 40 ? '#f97316' : '#22c55e';
+      const bgColor = index % 2 === 0 ? '#ffffff' : '#f8fafc';
       return `
-        <tr>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-weight: 500;">${factor}</td>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; width: 200px;">
-            <div style="background: #e5e7eb; border-radius: 4px; height: 20px; overflow: hidden;">
-              <div style="background: ${barColor}; width: ${barWidth}%; height: 100%;"></div>
-            </div>
+        <tr style="background: ${bgColor};">
+          <td style="padding: 14px 16px; font-size: 14px; color: #1e293b; font-weight: 500; border-bottom: 1px solid #e2e8f0;">${factor}</td>
+          <td style="padding: 14px 16px; border-bottom: 1px solid #e2e8f0; width: 180px;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: #e2e8f0; border-radius: 10px; height: 12px;">
+              <tr><td style="background: ${barColor}; width: ${Math.round(value)}%; border-radius: 10px;"></td><td></td></tr>
+            </table>
           </td>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600;">${value.toFixed(0)}%</td>
+          <td style="padding: 14px 16px; border-bottom: 1px solid #e2e8f0; text-align: center;">
+            <span style="display: inline-block; min-width: 45px; padding: 5px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; background: ${barColor}; color: white;">${value.toFixed(0)}%</span>
+          </td>
         </tr>
       `;
     }).join('') : '';
@@ -997,137 +1166,279 @@ ${aiInsight}
 <html>
 <head>
   <meta charset="utf-8">
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background: #f3f4f6; }
-    .container { max-width: 700px; margin: 0 auto; background: white; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body>
-  <div class="container">
-    <!-- Header -->
-    <div style="background: linear-gradient(135deg, ${severityColor} 0%, ${severityColor}dd 100%); padding: 24px; text-align: center;">
-      <h1 style="color: white; margin: 0; font-size: 24px;">🚨 CRITICAL RISK ALERT</h1>
-      <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0; font-size: 14px;">Immediate Attention Required</p>
-    </div>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f1f5f9;">
+    <tr>
+      <td style="padding: 30px 20px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="650" style="margin: 0 auto; max-width: 650px;">
 
-    <!-- Project Info -->
-    <div style="padding: 24px; border-bottom: 1px solid #e5e7eb;">
-      <table style="width: 100%;">
-        <tr>
-          <td style="padding: 8px 0;"><strong>📁 Project:</strong></td>
-          <td style="padding: 8px 0;">${projectName}</td>
-        </tr>
-        <tr>
-          <td style="padding: 8px 0;"><strong>📋 Activity:</strong></td>
-          <td style="padding: 8px 0;">${risk?.activity?.name || 'N/A'}</td>
-        </tr>
-        <tr>
-          <td style="padding: 8px 0;"><strong>🆔 Task ID:</strong></td>
-          <td style="padding: 8px 0;">${risk?.activity?.id || 'N/A'}</td>
-        </tr>
-        <tr>
-          <td style="padding: 8px 0;"><strong>📅 Generated:</strong></td>
-          <td style="padding: 8px 0;">${new Date().toLocaleString()}</td>
-        </tr>
-      </table>
-    </div>
-
-    <!-- Risk Score -->
-    <div style="padding: 24px; background: #fef2f2; border-bottom: 1px solid #e5e7eb;">
-      <h2 style="margin: 0 0 16px 0; color: #1f2937; font-size: 18px;">📊 Risk Summary</h2>
-      <div style="display: flex; gap: 24px;">
-        <div style="flex: 1; background: white; padding: 16px; border-radius: 12px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-          <div style="font-size: 36px; font-weight: 700; color: ${severityColor};">${risk?.riskScore?.toFixed(0) || 0}</div>
-          <div style="font-size: 12px; color: #6b7280; text-transform: uppercase;">Risk Score</div>
-        </div>
-        <div style="flex: 1; background: white; padding: 16px; border-radius: 12px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-          <div style="font-size: 24px; font-weight: 700; color: ${severityColor}; text-transform: uppercase;">${risk?.severity || 'N/A'}</div>
-          <div style="font-size: 12px; color: #6b7280; text-transform: uppercase;">Severity</div>
-        </div>
-        <div style="flex: 1; background: white; padding: 16px; border-radius: 12px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-          <div style="font-size: 24px; font-weight: 700; color: #dc2626;">${risk?.activity?.daysDelayed || 0} days</div>
-          <div style="font-size: 12px; color: #6b7280; text-transform: uppercase;">Schedule Slippage</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Risk Factors -->
-    <div style="padding: 24px; border-bottom: 1px solid #e5e7eb;">
-      <h2 style="margin: 0 0 16px 0; color: #1f2937; font-size: 18px;">📈 Risk Factor Breakdown</h2>
-      <table style="width: 100%; border-collapse: collapse; background: #f9fafb; border-radius: 8px; overflow: hidden;">
-        <thead>
-          <tr style="background: #e5e7eb;">
-            <th style="padding: 12px; text-align: left; font-weight: 600;">Factor</th>
-            <th style="padding: 12px; text-align: left; font-weight: 600;">Level</th>
-            <th style="padding: 12px; text-align: right; font-weight: 600;">Score</th>
+          <!-- Header -->
+          <tr>
+            <td style="background-color: ${severityColor}; padding: 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                <tr>
+                  <td style="text-align: center;">
+                    <div style="width: 70px; height: 70px; margin: 0 auto 16px; background-color: #ffffff; border-radius: 50%; line-height: 70px; font-size: 32px;">🚨</div>
+                    <h1 style="color: #ffffff !important; margin: 0 0 8px 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">Critical Risk Alert</h1>
+                    <p style="color: rgba(255,255,255,0.9); margin: 0; font-size: 15px; font-weight: 400;">Immediate Attention Required</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          ${factorsHtml}
-        </tbody>
-      </table>
-    </div>
 
-    <!-- Activity Details -->
-    <div style="padding: 24px; border-bottom: 1px solid #e5e7eb;">
-      <h2 style="margin: 0 0 16px 0; color: #1f2937; font-size: 18px;">📋 Activity Details</h2>
-      <table style="width: 100%; border-collapse: collapse;">
-        <tr>
-          <td style="padding: 8px 0; color: #6b7280; width: 40%;">Planned Duration</td>
-          <td style="padding: 8px 0; font-weight: 500;">${risk?.activity?.duration || 0} days</td>
-        </tr>
-        <tr>
-          <td style="padding: 8px 0; color: #6b7280;">Assigned Resource</td>
-          <td style="padding: 8px 0; font-weight: 500;">${risk?.activity?.resource || 'Unassigned'}</td>
-        </tr>
-        <tr>
-          <td style="padding: 8px 0; color: #6b7280;">Resource Utilization</td>
-          <td style="padding: 8px 0; font-weight: 500;">${risk?.activity?.allocation || 100}%</td>
-        </tr>
-        <tr>
-          <td style="padding: 8px 0; color: #6b7280;">On Critical Path</td>
-          <td style="padding: 8px 0; font-weight: 500;">${risk?.activity?.isCriticalPath ? '⚡ Yes' : 'No'}</td>
-        </tr>
-        <tr>
-          <td style="padding: 8px 0; color: #6b7280;">Schedule Buffer</td>
-          <td style="padding: 8px 0; font-weight: 500;">${risk?.activity?.float || 0} days</td>
-        </tr>
-        <tr>
-          <td style="padding: 8px 0; color: #6b7280;">Progress</td>
-          <td style="padding: 8px 0; font-weight: 500;">${risk?.activity?.percentComplete || 0}%</td>
-        </tr>
-      </table>
-    </div>
+          <!-- Project & Activity Info Bar -->
+          <tr>
+            <td style="background-color: #1e293b; padding: 20px 30px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                <tr>
+                  <td style="color: white;" width="50%">
+                    <p style="margin: 0 0 4px 0; font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">📁 Project</p>
+                    <p style="margin: 0; font-size: 16px; font-weight: 600; color: white;">${projectName}</p>
+                  </td>
+                  <td style="text-align: right; color: white;" width="50%">
+                    <p style="margin: 0 0 4px 0; font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">📅 Generated</p>
+                    <p style="margin: 0; font-size: 14px; color: #e2e8f0;">${new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-    ${aiInsight ? `
-    <!-- AI Insight -->
-    <div style="padding: 24px; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-bottom: 1px solid #e5e7eb;">
-      <h2 style="margin: 0 0 16px 0; color: #166534; font-size: 18px;">🤖 AI-Generated Executive Insight</h2>
-      <div style="background: white; padding: 20px; border-radius: 12px; border-left: 4px solid #10b981; font-size: 14px; color: #374151;">
-        ${markdownToHtml(aiInsight)}
-      </div>
-    </div>
-    ` : ''}
+          <!-- Activity Name Bar -->
+          <tr>
+            <td style="background-color: #334155; padding: 16px 30px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                <tr>
+                  <td>
+                    <p style="margin: 0 0 4px 0; font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">📋 Activity at Risk</p>
+                    <p style="margin: 0; font-size: 18px; font-weight: 700; color: #f8fafc;">${risk?.activity?.name || 'N/A'}</p>
+                    <p style="margin: 6px 0 0 0; font-size: 13px; color: #94a3b8;">Task ID: <span style="color: #e2e8f0; font-weight: 500;">${risk?.activity?.id || 'N/A'}</span></p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-    <!-- Recommended Actions -->
-    <div style="padding: 24px; border-bottom: 1px solid #e5e7eb;">
-      <h2 style="margin: 0 0 16px 0; color: #1f2937; font-size: 18px;">⚡ Recommended Actions</h2>
-      <ol style="margin: 0; padding-left: 20px; color: #374151;">
-        <li style="padding: 8px 0;">Review activity status and resource allocation</li>
-        <li style="padding: 8px 0;">Consider adding resources or adjusting timeline</li>
-        <li style="padding: 8px 0;">Monitor dependencies for cascading delays</li>
-        <li style="padding: 8px 0;">Schedule stakeholder meeting if critical path affected</li>
-      </ol>
-    </div>
+          <!-- Main Content -->
+          <tr>
+            <td style="background-color: white; padding: 0;">
 
-    <!-- Footer -->
-    <div style="padding: 24px; background: #f3f4f6; text-align: center;">
-      <p style="margin: 0; color: #6b7280; font-size: 12px;">
-        Generated by <strong>PM Risk Monitor</strong> - AI-Powered Risk Analysis<br>
-        ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-      </p>
-    </div>
-  </div>
+              <!-- Risk Score Cards -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="padding: 30px;">
+                <tr>
+                  <td colspan="3" style="padding-bottom: 20px;">
+                    <h2 style="margin: 0; font-size: 18px; font-weight: 600; color: #1e293b;">📊 Risk Summary</h2>
+                  </td>
+                </tr>
+                <tr>
+                  <td width="33%" style="padding: 8px;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border-radius: 12px; border: 1px solid #fecaca;">
+                      <tr>
+                        <td style="padding: 20px; text-align: center;">
+                          <div style="font-size: 42px; font-weight: 800; color: ${severityColor}; line-height: 1;">${risk?.riskScore?.toFixed(0) || 0}</div>
+                          <div style="font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px;">Risk Score</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td width="33%" style="padding: 8px;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%); border-radius: 12px; border: 1px solid #fed7aa;">
+                      <tr>
+                        <td style="padding: 20px; text-align: center;">
+                          <div style="font-size: 24px; font-weight: 800; color: ${severityColor}; line-height: 1; text-transform: uppercase;">${risk?.severity || 'N/A'}</div>
+                          <div style="font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px;">Severity</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td width="33%" style="padding: 8px;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border-radius: 12px; border: 1px solid #fecaca;">
+                      <tr>
+                        <td style="padding: 20px; text-align: center;">
+                          <div style="font-size: 28px; font-weight: 800; color: #dc2626; line-height: 1;">+${risk?.activity?.daysDelayed || 0}</div>
+                          <div style="font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px;">Days Delayed</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Quick Stats Bar -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                <tr>
+                  <td width="25%" style="padding: 16px 20px; text-align: center; border-right: 1px solid #e2e8f0;">
+                    <div style="font-size: 20px; font-weight: 700; color: #1e293b;">${risk?.activity?.duration || 0}</div>
+                    <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Duration (days)</div>
+                  </td>
+                  <td width="25%" style="padding: 16px 20px; text-align: center; border-right: 1px solid #e2e8f0;">
+                    <div style="font-size: 20px; font-weight: 700; color: #7c3aed;">${((risk?.activity?.Probability || 0.5) * 100).toFixed(0)}%</div>
+                    <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Probability</div>
+                  </td>
+                  <td width="25%" style="padding: 16px 20px; text-align: center; border-right: 1px solid #e2e8f0;">
+                    <div style="font-size: 20px; font-weight: 700; color: #dc2626;">$${((risk?.activity?.Cost_Impact_of_Risk || 0) / 1000).toFixed(0)}K</div>
+                    <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Cost Impact</div>
+                  </td>
+                  <td width="25%" style="padding: 16px 20px; text-align: center;">
+                    <div style="font-size: 20px; font-weight: 700; color: #f59e0b;">$${(emv / 1000).toFixed(0)}K</div>
+                    <div style="font-size: 11px; color: #64748b; margin-top: 2px;">EMV</div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Risk Factors Table -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="padding: 30px;">
+                <tr>
+                  <td>
+                    <h2 style="margin: 0 0 20px 0; font-size: 18px; font-weight: 600; color: #1e293b;">📈 Risk Factor Breakdown</h2>
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+                      <thead>
+                        <tr style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
+                          <th style="padding: 14px 16px; text-align: left; font-size: 12px; font-weight: 600; color: white; text-transform: uppercase; letter-spacing: 0.5px;">Factor</th>
+                          <th style="padding: 14px 16px; text-align: center; font-size: 12px; font-weight: 600; color: white; text-transform: uppercase; letter-spacing: 0.5px;" width="180">Level</th>
+                          <th style="padding: 14px 16px; text-align: center; font-size: 12px; font-weight: 600; color: white; text-transform: uppercase; letter-spacing: 0.5px;" width="100">Score</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${factorsHtml}
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Two Column Details -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="padding: 0 30px 30px 30px;">
+                <tr>
+                  <td width="50%" style="padding-right: 15px; vertical-align: top;">
+                    <!-- Activity Details -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
+                      <tr>
+                        <td style="padding: 16px; border-bottom: 1px solid #e2e8f0; background: #f1f5f9; border-radius: 12px 12px 0 0;">
+                          <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: #1e293b;">📋 Activity Details</h3>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 16px;">
+                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                            <tr><td style="padding: 6px 0; font-size: 13px; color: #64748b;">Resource</td><td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #1e293b; text-align: right;">${risk?.activity?.resource || 'Unassigned'}</td></tr>
+                            <tr><td style="padding: 6px 0; font-size: 13px; color: #64748b;">Allocation</td><td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #1e293b; text-align: right;">${risk?.activity?.allocation || 100}%</td></tr>
+                            <tr><td style="padding: 6px 0; font-size: 13px; color: #64748b;">Max FTE</td><td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #1e293b; text-align: right;">${risk?.activity?.Resource_Max_FTE || 1.0}</td></tr>
+                            <tr><td style="padding: 6px 0; font-size: 13px; color: #64748b;">Critical Path</td><td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: ${risk?.activity?.isCriticalPath ? '#dc2626' : '#16a34a'}; text-align: right;">${risk?.activity?.isCriticalPath ? '⚡ Yes' : 'No'}</td></tr>
+                            <tr><td style="padding: 6px 0; font-size: 13px; color: #64748b;">Float</td><td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #1e293b; text-align: right;">${risk?.activity?.float || 0} days</td></tr>
+                            <tr><td style="padding: 6px 0; font-size: 13px; color: #64748b;">Progress</td><td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #1e293b; text-align: right;">${risk?.activity?.percentComplete || 0}%</td></tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td width="50%" style="padding-left: 15px; vertical-align: top;">
+                    <!-- CPM Data -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
+                      <tr>
+                        <td style="padding: 16px; border-bottom: 1px solid #e2e8f0; background: #f1f5f9; border-radius: 12px 12px 0 0;">
+                          <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: #1e293b;">📅 CPM Schedule</h3>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 16px;">
+                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                            <tr><td style="padding: 6px 0; font-size: 13px; color: #64748b;">Early Start (ES)</td><td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #1e293b; text-align: right;">${risk?.activity?.ES || 0}</td></tr>
+                            <tr><td style="padding: 6px 0; font-size: 13px; color: #64748b;">Early Finish (EF)</td><td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #1e293b; text-align: right;">${risk?.activity?.EF || 0}</td></tr>
+                            <tr><td style="padding: 6px 0; font-size: 13px; color: #64748b;">Late Start (LS)</td><td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #1e293b; text-align: right;">${risk?.activity?.LS || 0}</td></tr>
+                            <tr><td style="padding: 6px 0; font-size: 13px; color: #64748b;">Late Finish (LF)</td><td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #1e293b; text-align: right;">${risk?.activity?.LF || 0}</td></tr>
+                            <tr><td style="padding: 6px 0; font-size: 13px; color: #64748b;">Predecessor</td><td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #1e293b; text-align: right;">${risk?.activity?.Predecessor_ID || 'None'}</td></tr>
+                            <tr><td style="padding: 6px 0; font-size: 13px; color: #64748b;">Successor</td><td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #1e293b; text-align: right;">${risk?.activity?.Successor_ID || 'None'}</td></tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              ${aiInsight ? `
+              <!-- AI Insight Section -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="padding: 0 30px 30px 30px;">
+                <tr>
+                  <td>
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border-radius: 12px; border: 1px solid #86efac;">
+                      <tr>
+                        <td style="padding: 20px;">
+                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                            <tr>
+                              <td width="40" style="vertical-align: top;">
+                                <div style="width: 36px; height: 36px; background-color: #10b981; border-radius: 10px; text-align: center; line-height: 36px; font-size: 18px;">🤖</div>
+                              </td>
+                              <td style="padding-left: 12px;">
+                                <h3 style="margin: 0 0 10px 0; font-size: 15px; font-weight: 600; color: #065f46;">AI-Generated Executive Insight</h3>
+                                <div style="font-size: 14px; color: #047857; line-height: 1.6;">${markdownToHtml(aiInsight)}</div>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              ` : ''}
+
+              <!-- Recommended Actions -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="padding: 0 30px 30px 30px;">
+                <tr>
+                  <td>
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-radius: 12px; border: 1px solid #93c5fd;">
+                      <tr>
+                        <td style="padding: 20px;">
+                          <h3 style="margin: 0 0 16px 0; font-size: 15px; font-weight: 600; color: #1e40af;">⚡ Recommended Actions</h3>
+                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                            <tr><td style="padding: 8px 0; font-size: 14px; color: #1e40af;"><span style="display: inline-block; width: 24px; height: 24px; background: #3b82f6; color: white; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; margin-right: 10px;">1</span>Review activity status and resource allocation</td></tr>
+                            <tr><td style="padding: 8px 0; font-size: 14px; color: #1e40af;"><span style="display: inline-block; width: 24px; height: 24px; background: #3b82f6; color: white; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; margin-right: 10px;">2</span>Consider adding resources or adjusting timeline</td></tr>
+                            <tr><td style="padding: 8px 0; font-size: 14px; color: #1e40af;"><span style="display: inline-block; width: 24px; height: 24px; background: #3b82f6; color: white; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; margin-right: 10px;">3</span>Monitor dependencies for cascading delays</td></tr>
+                            <tr><td style="padding: 8px 0; font-size: 14px; color: #1e40af;"><span style="display: inline-block; width: 24px; height: 24px; background: #3b82f6; color: white; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; margin-right: 10px;">4</span>Schedule stakeholder meeting if critical path affected</td></tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 30px; border-radius: 0 0 16px 16px; text-align: center;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                <tr>
+                  <td style="text-align: center;">
+                    <p style="margin: 0 0 8px 0; font-size: 14px; color: white; font-weight: 600;">PM Risk Monitor</p>
+                    <p style="margin: 0 0 16px 0; font-size: 12px; color: #94a3b8;">AI-Powered Project Risk Analysis</p>
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto;">
+                      <tr>
+                        <td style="padding: 0 8px;">
+                          <span style="display: inline-block; padding: 4px 10px; background: rgba(255,255,255,0.1); border-radius: 4px; font-size: 10px; color: #94a3b8;">i2e Consulting</span>
+                        </td>
+                        <td style="padding: 0 8px;">
+                          <span style="display: inline-block; padding: 4px 10px; background: rgba(255,255,255,0.1); border-radius: 4px; font-size: 10px; color: #94a3b8;">AI Lab Hackathon 2025</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>
     `;
@@ -1354,7 +1665,92 @@ ${aiInsight}
 };
 
 // ===================================
+// ACTIVITY NORMALIZER - Converts any activity format to the complete field structure
+// Handles both old field names and new field names for backward compatibility
+// ===================================
+const normalizeActivity = (act) => {
+  const plannedDuration = act.Planned_Duration || act.duration || 5;
+  const percentComplete = act.Percent_Complete !== undefined ? act.Percent_Complete : (act.completionPercent || 0);
+  const plannedStart = act.Planned_Start || act.startDate || '2025-01-01';
+  const status = act.Status || act.status || 'not-started';
+
+  return {
+    // Activity Info
+    Activity_ID: act.Activity_ID || act.id || '',
+    Activity_Name: act.Activity_Name || act.name || '',
+    Work_Package: act.Work_Package || '',
+
+    // Schedule
+    Planned_Start: plannedStart,
+    Planned_Finish: act.Planned_Finish || '',
+    Planned_Duration: plannedDuration,
+    Actual_Start: act.Actual_Start || (status !== 'not-started' ? plannedStart : ''),
+    Actual_Finish: act.Actual_Finish || (status === 'completed' ? act.Planned_Finish : ''),
+    Remaining_Duration: act.Remaining_Duration !== undefined ? act.Remaining_Duration :
+      Math.round(plannedDuration * (1 - percentComplete / 100)),
+
+    // Baseline
+    Baseline_Start: act.Baseline_Start || plannedStart,
+    Baseline_Finish: act.Baseline_Finish || act.Planned_Finish || '',
+    Baseline_Duration: act.Baseline_Duration || plannedDuration,
+
+    // Progress
+    Percent_Complete: percentComplete,
+    Status: status,
+
+    // CPM Analysis
+    ES: act.ES || 0,
+    EF: act.EF || 0,
+    LS: act.LS || 0,
+    LF: act.LF || 0,
+    Total_Float_days: act.Total_Float_days !== undefined ? act.Total_Float_days : (act.float || 0),
+    On_Critical_Path: act.On_Critical_Path !== undefined ? act.On_Critical_Path : (act.isCriticalPath || false),
+
+    // Dependencies
+    Predecessor_ID: act.Predecessor_ID || '',
+    Successor_ID: act.Successor_ID || '',
+    Dependency_Type: act.Dependency_Type || 'FS',
+
+    // Resources
+    Resource_ID: act.Resource_ID || act.resource || '',
+    Role: act.Role || '',
+    FTE_Allocation: act.FTE_Allocation !== undefined ? act.FTE_Allocation : (act.allocation || 100),
+    Resource_Max_FTE: act.Resource_Max_FTE || 1.0,
+    Skill_Tags: act.Skill_Tags || '',
+
+    // Risk Data
+    Probability: act.Probability || 0.5,
+    Delay_Impact_days: act.Delay_Impact_days !== undefined ? act.Delay_Impact_days : (act.daysDelayed || 0),
+    Cost_Impact_of_Risk: act.Cost_Impact_of_Risk || 0,
+
+    // Legacy field mappings for backward compatibility
+    id: act.Activity_ID || act.id || '',
+    name: act.Activity_Name || act.name || '',
+    duration: plannedDuration,
+    dependencies: act.dependencies || [],
+    resource: act.Resource_ID || act.resource || '',
+    startDate: plannedStart,
+    status: status,
+    daysDelayed: act.Delay_Impact_days !== undefined ? act.Delay_Impact_days : (act.daysDelayed || 0),
+    allocation: act.FTE_Allocation !== undefined ? act.FTE_Allocation : (act.allocation || 100),
+    completionPercent: percentComplete,
+    type: act.type || 'General',
+    isCriticalPath: act.On_Critical_Path !== undefined ? act.On_Critical_Path : (act.isCriticalPath || false),
+    float: act.Total_Float_days !== undefined ? act.Total_Float_days : (act.float || 0)
+  };
+};
+
+// ===================================
 // SAMPLE PROJECTS DATA (7 different project types)
+// Complete field structure per requirements:
+// Activity Info: Activity_ID, Activity_Name, Work_Package
+// Schedule: Planned_Start, Planned_Finish, Planned_Duration, Actual_Start, Actual_Finish, Remaining_Duration
+// Baseline: Baseline_Start, Baseline_Finish, Baseline_Duration
+// Progress: Percent_Complete, Status
+// CPM Analysis: ES, EF, LS, LF, Total_Float_days, On_Critical_Path
+// Dependencies: Predecessor_ID, Successor_ID, Dependency_Type
+// Resources: Resource_ID, Role, FTE_Allocation, Resource_Max_FTE, Skill_Tags
+// Risk Data: Probability, Delay_Impact_days, Cost_Impact_of_Risk
 // ===================================
 const SAMPLE_PROJECTS = [
   // 1. SOFTWARE DEVELOPMENT PROJECT
@@ -1363,16 +1759,16 @@ const SAMPLE_PROJECTS = [
     category: 'Software Development',
     budget: 850000,
     activities: [
-      { id: 'SD-001', name: 'Project Kickoff & Planning', duration: 5, dependencies: [], resource: 'PM-001', startDate: '2025-01-06', status: 'completed', daysDelayed: 0, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Planning' },
-      { id: 'SD-002', name: 'Requirements Analysis', duration: 12, dependencies: ['SD-001'], resource: 'BA-001', startDate: '2025-01-13', status: 'completed', daysDelayed: 2, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Analysis' },
-      { id: 'SD-003', name: 'System Architecture Design', duration: 10, dependencies: ['SD-002'], resource: 'ARCH-001', startDate: '2025-01-27', status: 'in-progress', daysDelayed: 3, allocation: 120, completionPercent: 75, isCriticalPath: true, float: 0, type: 'Design' },
-      { id: 'SD-004', name: 'Database Schema Design', duration: 8, dependencies: ['SD-002'], resource: 'DBA-001', startDate: '2025-01-27', status: 'in-progress', daysDelayed: 1, allocation: 100, completionPercent: 80, isCriticalPath: false, float: 5, type: 'Design' },
-      { id: 'SD-005', name: 'API Design & Documentation', duration: 6, dependencies: ['SD-003'], resource: 'ARCH-001', startDate: '2025-02-10', status: 'in-progress', daysDelayed: 2, allocation: 110, completionPercent: 60, isCriticalPath: true, float: 0, type: 'Design' },
-      { id: 'SD-006', name: 'Backend Core Development', duration: 25, dependencies: ['SD-003', 'SD-004'], resource: 'DEV-001', startDate: '2025-02-17', status: 'in-progress', daysDelayed: 5, allocation: 140, completionPercent: 35, isCriticalPath: true, float: 0, type: 'Development' },
-      { id: 'SD-007', name: 'User Authentication Module', duration: 12, dependencies: ['SD-005'], resource: 'DEV-002', startDate: '2025-02-17', status: 'in-progress', daysDelayed: 3, allocation: 100, completionPercent: 50, isCriticalPath: false, float: 8, type: 'Development' },
-      { id: 'SD-008', name: 'Frontend UI Development', duration: 20, dependencies: ['SD-003'], resource: 'FE-001', startDate: '2025-02-17', status: 'in-progress', daysDelayed: 4, allocation: 130, completionPercent: 40, isCriticalPath: false, float: 5, type: 'Development' },
-      { id: 'SD-009', name: 'Integration Testing', duration: 10, dependencies: ['SD-006', 'SD-007'], resource: 'QA-001', startDate: '2025-04-14', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Testing' },
-      { id: 'SD-010', name: 'Production Deployment', duration: 5, dependencies: ['SD-009'], resource: 'DEVOPS-001', startDate: '2025-04-28', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Deployment' }
+      { Activity_ID: 'SD-001', Activity_Name: 'Project Kickoff & Planning', Work_Package: 'WP-INIT', Planned_Start: '2025-01-06', Planned_Finish: '2025-01-10', Planned_Duration: 5, Actual_Start: '2025-01-06', Actual_Finish: '2025-01-10', Remaining_Duration: 0, Baseline_Start: '2025-01-06', Baseline_Finish: '2025-01-10', Baseline_Duration: 5, Percent_Complete: 100, Status: 'completed', ES: 0, EF: 5, LS: 0, LF: 5, Total_Float_days: 0, On_Critical_Path: true, Predecessor_ID: '', Successor_ID: 'SD-002', Dependency_Type: 'FS', Resource_ID: 'PM-001', Role: 'Project Manager', FTE_Allocation: 100, Resource_Max_FTE: 1.0, Skill_Tags: 'ProjectMgmt;Leadership', Probability: 0.1, Delay_Impact_days: 0, Cost_Impact_of_Risk: 0 },
+      { Activity_ID: 'SD-002', Activity_Name: 'Requirements Analysis', Work_Package: 'WP-ANALYSIS', Planned_Start: '2025-01-13', Planned_Finish: '2025-01-24', Planned_Duration: 12, Actual_Start: '2025-01-13', Actual_Finish: '2025-01-26', Remaining_Duration: 0, Baseline_Start: '2025-01-13', Baseline_Finish: '2025-01-24', Baseline_Duration: 12, Percent_Complete: 100, Status: 'completed', ES: 5, EF: 17, LS: 5, LF: 17, Total_Float_days: 0, On_Critical_Path: true, Predecessor_ID: 'SD-001', Successor_ID: 'SD-003;SD-004', Dependency_Type: 'FS', Resource_ID: 'BA-001', Role: 'Business Analyst', FTE_Allocation: 100, Resource_Max_FTE: 1.0, Skill_Tags: 'BusinessAnalysis;Requirements', Probability: 0.3, Delay_Impact_days: 2, Cost_Impact_of_Risk: 5000 },
+      { Activity_ID: 'SD-003', Activity_Name: 'System Architecture Design', Work_Package: 'WP-DESIGN', Planned_Start: '2025-01-27', Planned_Finish: '2025-02-07', Planned_Duration: 10, Actual_Start: '2025-01-30', Actual_Finish: '', Remaining_Duration: 3, Baseline_Start: '2025-01-27', Baseline_Finish: '2025-02-07', Baseline_Duration: 10, Percent_Complete: 75, Status: 'in-progress', ES: 17, EF: 27, LS: 17, LF: 27, Total_Float_days: 0, On_Critical_Path: true, Predecessor_ID: 'SD-002', Successor_ID: 'SD-005;SD-006;SD-008', Dependency_Type: 'FS', Resource_ID: 'ARCH-001', Role: 'Solution Architect', FTE_Allocation: 120, Resource_Max_FTE: 1.2, Skill_Tags: 'Architecture;SystemDesign', Probability: 0.5, Delay_Impact_days: 5, Cost_Impact_of_Risk: 15000 },
+      { Activity_ID: 'SD-004', Activity_Name: 'Database Schema Design', Work_Package: 'WP-DESIGN', Planned_Start: '2025-01-27', Planned_Finish: '2025-02-05', Planned_Duration: 8, Actual_Start: '2025-01-28', Actual_Finish: '', Remaining_Duration: 2, Baseline_Start: '2025-01-27', Baseline_Finish: '2025-02-05', Baseline_Duration: 8, Percent_Complete: 80, Status: 'in-progress', ES: 17, EF: 25, LS: 22, LF: 30, Total_Float_days: 5, On_Critical_Path: false, Predecessor_ID: 'SD-002', Successor_ID: 'SD-006', Dependency_Type: 'FS', Resource_ID: 'DBA-001', Role: 'Database Administrator', FTE_Allocation: 100, Resource_Max_FTE: 1.0, Skill_Tags: 'Database;SQL;DataModeling', Probability: 0.2, Delay_Impact_days: 1, Cost_Impact_of_Risk: 3000 },
+      { Activity_ID: 'SD-005', Activity_Name: 'API Design & Documentation', Work_Package: 'WP-DESIGN', Planned_Start: '2025-02-10', Planned_Finish: '2025-02-17', Planned_Duration: 6, Actual_Start: '2025-02-12', Actual_Finish: '', Remaining_Duration: 3, Baseline_Start: '2025-02-10', Baseline_Finish: '2025-02-17', Baseline_Duration: 6, Percent_Complete: 60, Status: 'in-progress', ES: 27, EF: 33, LS: 27, LF: 33, Total_Float_days: 0, On_Critical_Path: true, Predecessor_ID: 'SD-003', Successor_ID: 'SD-007', Dependency_Type: 'FS', Resource_ID: 'ARCH-001', Role: 'Solution Architect', FTE_Allocation: 110, Resource_Max_FTE: 1.1, Skill_Tags: 'API;REST;Documentation', Probability: 0.4, Delay_Impact_days: 3, Cost_Impact_of_Risk: 8000 },
+      { Activity_ID: 'SD-006', Activity_Name: 'Backend Core Development', Work_Package: 'WP-DEV', Planned_Start: '2025-02-17', Planned_Finish: '2025-03-21', Planned_Duration: 25, Actual_Start: '2025-02-22', Actual_Finish: '', Remaining_Duration: 17, Baseline_Start: '2025-02-17', Baseline_Finish: '2025-03-21', Baseline_Duration: 25, Percent_Complete: 35, Status: 'in-progress', ES: 27, EF: 52, LS: 27, LF: 52, Total_Float_days: 0, On_Critical_Path: true, Predecessor_ID: 'SD-003;SD-004', Successor_ID: 'SD-009', Dependency_Type: 'FS', Resource_ID: 'DEV-001', Role: 'Senior Developer', FTE_Allocation: 140, Resource_Max_FTE: 1.5, Skill_Tags: 'Backend;Java;Spring', Probability: 0.6, Delay_Impact_days: 8, Cost_Impact_of_Risk: 35000 },
+      { Activity_ID: 'SD-007', Activity_Name: 'User Authentication Module', Work_Package: 'WP-DEV', Planned_Start: '2025-02-17', Planned_Finish: '2025-03-03', Planned_Duration: 12, Actual_Start: '2025-02-20', Actual_Finish: '', Remaining_Duration: 6, Baseline_Start: '2025-02-17', Baseline_Finish: '2025-03-03', Baseline_Duration: 12, Percent_Complete: 50, Status: 'in-progress', ES: 33, EF: 45, LS: 41, LF: 53, Total_Float_days: 8, On_Critical_Path: false, Predecessor_ID: 'SD-005', Successor_ID: 'SD-009', Dependency_Type: 'FS', Resource_ID: 'DEV-002', Role: 'Developer', FTE_Allocation: 100, Resource_Max_FTE: 1.0, Skill_Tags: 'Security;OAuth;Authentication', Probability: 0.4, Delay_Impact_days: 4, Cost_Impact_of_Risk: 12000 },
+      { Activity_ID: 'SD-008', Activity_Name: 'Frontend UI Development', Work_Package: 'WP-DEV', Planned_Start: '2025-02-17', Planned_Finish: '2025-03-14', Planned_Duration: 20, Actual_Start: '2025-02-21', Actual_Finish: '', Remaining_Duration: 12, Baseline_Start: '2025-02-17', Baseline_Finish: '2025-03-14', Baseline_Duration: 20, Percent_Complete: 40, Status: 'in-progress', ES: 27, EF: 47, LS: 32, LF: 52, Total_Float_days: 5, On_Critical_Path: false, Predecessor_ID: 'SD-003', Successor_ID: '', Dependency_Type: 'FS', Resource_ID: 'FE-001', Role: 'Frontend Developer', FTE_Allocation: 130, Resource_Max_FTE: 1.3, Skill_Tags: 'Frontend;React;CSS', Probability: 0.5, Delay_Impact_days: 6, Cost_Impact_of_Risk: 20000 },
+      { Activity_ID: 'SD-009', Activity_Name: 'Integration Testing', Work_Package: 'WP-TEST', Planned_Start: '2025-04-14', Planned_Finish: '2025-04-25', Planned_Duration: 10, Actual_Start: '', Actual_Finish: '', Remaining_Duration: 10, Baseline_Start: '2025-04-14', Baseline_Finish: '2025-04-25', Baseline_Duration: 10, Percent_Complete: 0, Status: 'not-started', ES: 52, EF: 62, LS: 52, LF: 62, Total_Float_days: 0, On_Critical_Path: true, Predecessor_ID: 'SD-006;SD-007', Successor_ID: 'SD-010', Dependency_Type: 'FS', Resource_ID: 'QA-001', Role: 'QA Engineer', FTE_Allocation: 100, Resource_Max_FTE: 1.0, Skill_Tags: 'Testing;QA;Automation', Probability: 0.3, Delay_Impact_days: 3, Cost_Impact_of_Risk: 10000 },
+      { Activity_ID: 'SD-010', Activity_Name: 'Production Deployment', Work_Package: 'WP-DEPLOY', Planned_Start: '2025-04-28', Planned_Finish: '2025-05-02', Planned_Duration: 5, Actual_Start: '', Actual_Finish: '', Remaining_Duration: 5, Baseline_Start: '2025-04-28', Baseline_Finish: '2025-05-02', Baseline_Duration: 5, Percent_Complete: 0, Status: 'not-started', ES: 62, EF: 67, LS: 62, LF: 67, Total_Float_days: 0, On_Critical_Path: true, Predecessor_ID: 'SD-009', Successor_ID: '', Dependency_Type: 'FS', Resource_ID: 'DEVOPS-001', Role: 'DevOps Engineer', FTE_Allocation: 100, Resource_Max_FTE: 1.0, Skill_Tags: 'DevOps;Docker;Kubernetes', Probability: 0.2, Delay_Impact_days: 2, Cost_Impact_of_Risk: 25000 }
     ]
   },
   // 2. HEALTHCARE - HOSPITAL EMR IMPLEMENTATION
@@ -1381,18 +1777,18 @@ const SAMPLE_PROJECTS = [
     category: 'Healthcare IT',
     budget: 2500000,
     activities: [
-      { id: 'EMR-001', name: 'Stakeholder Alignment & Governance Setup', duration: 10, dependencies: [], resource: 'HC-PM-001', startDate: '2025-01-06', status: 'completed', daysDelayed: 0, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Planning' },
-      { id: 'EMR-002', name: 'Clinical Workflow Analysis', duration: 15, dependencies: ['EMR-001'], resource: 'HC-BA-001', startDate: '2025-01-20', status: 'completed', daysDelayed: 3, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Analysis' },
-      { id: 'EMR-003', name: 'HIPAA Compliance Assessment', duration: 12, dependencies: ['EMR-001'], resource: 'COMP-001', startDate: '2025-01-20', status: 'in-progress', daysDelayed: 5, allocation: 120, completionPercent: 70, isCriticalPath: true, float: 0, type: 'Compliance' },
-      { id: 'EMR-004', name: 'Infrastructure Setup & Security', duration: 20, dependencies: ['EMR-003'], resource: 'IT-001', startDate: '2025-02-05', status: 'in-progress', daysDelayed: 4, allocation: 130, completionPercent: 45, isCriticalPath: true, float: 0, type: 'Infrastructure' },
-      { id: 'EMR-005', name: 'Patient Data Migration Planning', duration: 10, dependencies: ['EMR-002'], resource: 'DBA-HC-001', startDate: '2025-02-10', status: 'in-progress', daysDelayed: 2, allocation: 100, completionPercent: 60, isCriticalPath: false, float: 8, type: 'Data Migration' },
-      { id: 'EMR-006', name: 'EMR Core Module Configuration', duration: 25, dependencies: ['EMR-004'], resource: 'EMR-SPEC-001', startDate: '2025-03-03', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Configuration' },
-      { id: 'EMR-007', name: 'Patient Portal Development', duration: 18, dependencies: ['EMR-006'], resource: 'DEV-HC-001', startDate: '2025-04-07', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 5, type: 'Development' },
-      { id: 'EMR-008', name: 'HL7/FHIR Integration', duration: 15, dependencies: ['EMR-006'], resource: 'INT-001', startDate: '2025-04-07', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Integration' },
-      { id: 'EMR-009', name: 'Clinical Staff Training', duration: 20, dependencies: ['EMR-006', 'EMR-007'], resource: 'TRAIN-001', startDate: '2025-05-05', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Training' },
-      { id: 'EMR-010', name: 'Patient Data Migration Execution', duration: 12, dependencies: ['EMR-005', 'EMR-006'], resource: 'DBA-HC-001', startDate: '2025-04-07', status: 'not-started', daysDelayed: 0, allocation: 140, completionPercent: 0, isCriticalPath: false, float: 10, type: 'Data Migration' },
-      { id: 'EMR-011', name: 'UAT with Clinical Staff', duration: 15, dependencies: ['EMR-008', 'EMR-009'], resource: 'QA-HC-001', startDate: '2025-06-02', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Testing' },
-      { id: 'EMR-012', name: 'Go-Live & Hypercare Support', duration: 14, dependencies: ['EMR-011'], resource: 'HC-PM-001', startDate: '2025-06-23', status: 'not-started', daysDelayed: 0, allocation: 150, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Deployment' }
+      { id: 'EMR-001', name: 'Stakeholder Alignment & Governance Setup', duration: 10, dependencies: [], resource: 'HC-PM-001', startDate: '2025-01-06', status: 'completed', daysDelayed: 0, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Planning', ES: 0, EF: 10, LS: 0, LF: 10, Predecessor_ID: '', Successor_ID: 'EMR-002;EMR-003', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Healthcare;ProjectMgmt', Probability: 0.1, Delay_Impact_days: 0, Cost_Impact_of_Risk: 0 },
+      { id: 'EMR-002', name: 'Clinical Workflow Analysis', duration: 15, dependencies: ['EMR-001'], resource: 'HC-BA-001', startDate: '2025-01-20', status: 'completed', daysDelayed: 3, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Analysis', ES: 10, EF: 25, LS: 10, LF: 25, Predecessor_ID: 'EMR-001', Successor_ID: 'EMR-005', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Clinical;Workflow;Analysis', Probability: 0.4, Delay_Impact_days: 5, Cost_Impact_of_Risk: 15000 },
+      { id: 'EMR-003', name: 'HIPAA Compliance Assessment', duration: 12, dependencies: ['EMR-001'], resource: 'COMP-001', startDate: '2025-01-20', status: 'in-progress', daysDelayed: 5, allocation: 120, completionPercent: 70, isCriticalPath: true, float: 0, type: 'Compliance', ES: 10, EF: 22, LS: 10, LF: 22, Predecessor_ID: 'EMR-001', Successor_ID: 'EMR-004', Dependency_Type: 'FS', Resource_Max_FTE: 1.2, Skill_Tags: 'HIPAA;Compliance;Security', Probability: 0.6, Delay_Impact_days: 8, Cost_Impact_of_Risk: 50000 },
+      { id: 'EMR-004', name: 'Infrastructure Setup & Security', duration: 20, dependencies: ['EMR-003'], resource: 'IT-001', startDate: '2025-02-05', status: 'in-progress', daysDelayed: 4, allocation: 130, completionPercent: 45, isCriticalPath: true, float: 0, type: 'Infrastructure', ES: 22, EF: 42, LS: 22, LF: 42, Predecessor_ID: 'EMR-003', Successor_ID: 'EMR-006', Dependency_Type: 'FS', Resource_Max_FTE: 1.3, Skill_Tags: 'Infrastructure;Security;Networking', Probability: 0.5, Delay_Impact_days: 6, Cost_Impact_of_Risk: 35000 },
+      { id: 'EMR-005', name: 'Patient Data Migration Planning', duration: 10, dependencies: ['EMR-002'], resource: 'DBA-HC-001', startDate: '2025-02-10', status: 'in-progress', daysDelayed: 2, allocation: 100, completionPercent: 60, isCriticalPath: false, float: 8, type: 'Data Migration', ES: 25, EF: 35, LS: 33, LF: 43, Predecessor_ID: 'EMR-002', Successor_ID: 'EMR-010', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Database;Migration;ETL', Probability: 0.3, Delay_Impact_days: 3, Cost_Impact_of_Risk: 10000 },
+      { id: 'EMR-006', name: 'EMR Core Module Configuration', duration: 25, dependencies: ['EMR-004'], resource: 'EMR-SPEC-001', startDate: '2025-03-03', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Configuration', ES: 42, EF: 67, LS: 42, LF: 67, Predecessor_ID: 'EMR-004', Successor_ID: 'EMR-007;EMR-008;EMR-009;EMR-010', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'EMR;Epic;Configuration', Probability: 0.4, Delay_Impact_days: 5, Cost_Impact_of_Risk: 40000 },
+      { id: 'EMR-007', name: 'Patient Portal Development', duration: 18, dependencies: ['EMR-006'], resource: 'DEV-HC-001', startDate: '2025-04-07', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 5, type: 'Development', ES: 67, EF: 85, LS: 72, LF: 90, Predecessor_ID: 'EMR-006', Successor_ID: 'EMR-009', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Portal;WebDev;Patient', Probability: 0.3, Delay_Impact_days: 4, Cost_Impact_of_Risk: 20000 },
+      { id: 'EMR-008', name: 'HL7/FHIR Integration', duration: 15, dependencies: ['EMR-006'], resource: 'INT-001', startDate: '2025-04-07', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Integration', ES: 67, EF: 82, LS: 67, LF: 82, Predecessor_ID: 'EMR-006', Successor_ID: 'EMR-011', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'HL7;FHIR;Integration;Interoperability', Probability: 0.5, Delay_Impact_days: 6, Cost_Impact_of_Risk: 30000 },
+      { id: 'EMR-009', name: 'Clinical Staff Training', duration: 20, dependencies: ['EMR-006', 'EMR-007'], resource: 'TRAIN-001', startDate: '2025-05-05', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Training', ES: 85, EF: 105, LS: 85, LF: 105, Predecessor_ID: 'EMR-006;EMR-007', Successor_ID: 'EMR-011', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Training;Clinical;Education', Probability: 0.3, Delay_Impact_days: 4, Cost_Impact_of_Risk: 15000 },
+      { id: 'EMR-010', name: 'Patient Data Migration Execution', duration: 12, dependencies: ['EMR-005', 'EMR-006'], resource: 'DBA-HC-001', startDate: '2025-04-07', status: 'not-started', daysDelayed: 0, allocation: 140, completionPercent: 0, isCriticalPath: false, float: 10, type: 'Data Migration', ES: 67, EF: 79, LS: 77, LF: 89, Predecessor_ID: 'EMR-005;EMR-006', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.4, Skill_Tags: 'Database;Migration;PatientData', Probability: 0.5, Delay_Impact_days: 5, Cost_Impact_of_Risk: 25000 },
+      { id: 'EMR-011', name: 'UAT with Clinical Staff', duration: 15, dependencies: ['EMR-008', 'EMR-009'], resource: 'QA-HC-001', startDate: '2025-06-02', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Testing', ES: 105, EF: 120, LS: 105, LF: 120, Predecessor_ID: 'EMR-008;EMR-009', Successor_ID: 'EMR-012', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'UAT;Testing;Clinical', Probability: 0.3, Delay_Impact_days: 3, Cost_Impact_of_Risk: 20000 },
+      { id: 'EMR-012', name: 'Go-Live & Hypercare Support', duration: 14, dependencies: ['EMR-011'], resource: 'HC-PM-001', startDate: '2025-06-23', status: 'not-started', daysDelayed: 0, allocation: 150, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Deployment', ES: 120, EF: 134, LS: 120, LF: 134, Predecessor_ID: 'EMR-011', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.5, Skill_Tags: 'GoLive;Support;Healthcare', Probability: 0.4, Delay_Impact_days: 7, Cost_Impact_of_Risk: 100000 }
     ]
   },
   // 3. HEALTHCARE - CLINICAL TRIAL MANAGEMENT
@@ -1401,18 +1797,18 @@ const SAMPLE_PROJECTS = [
     category: 'Healthcare Research',
     budget: 4500000,
     activities: [
-      { id: 'CT-001', name: 'Protocol Development & IRB Submission', duration: 30, dependencies: [], resource: 'CRA-001', startDate: '2025-01-06', status: 'completed', daysDelayed: 5, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Regulatory' },
-      { id: 'CT-002', name: 'Site Selection & Feasibility', duration: 20, dependencies: ['CT-001'], resource: 'CRA-002', startDate: '2025-02-17', status: 'in-progress', daysDelayed: 3, allocation: 110, completionPercent: 80, isCriticalPath: true, float: 0, type: 'Planning' },
-      { id: 'CT-003', name: 'Site Initiation Visits', duration: 25, dependencies: ['CT-002'], resource: 'CRA-001', startDate: '2025-03-17', status: 'in-progress', daysDelayed: 2, allocation: 120, completionPercent: 40, isCriticalPath: true, float: 0, type: 'Operations' },
-      { id: 'CT-004', name: 'Patient Recruitment Campaign', duration: 60, dependencies: ['CT-003'], resource: 'RECRUIT-001', startDate: '2025-04-21', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Recruitment' },
-      { id: 'CT-005', name: 'EDC System Setup & Validation', duration: 15, dependencies: ['CT-001'], resource: 'DATA-001', startDate: '2025-02-17', status: 'in-progress', daysDelayed: 4, allocation: 100, completionPercent: 65, isCriticalPath: false, float: 10, type: 'Data Management' },
-      { id: 'CT-006', name: 'Drug Supply Chain Setup', duration: 18, dependencies: ['CT-002'], resource: 'SUPPLY-001', startDate: '2025-03-17', status: 'in-progress', daysDelayed: 1, allocation: 100, completionPercent: 55, isCriticalPath: false, float: 8, type: 'Logistics' },
-      { id: 'CT-007', name: 'Patient Screening & Enrollment', duration: 90, dependencies: ['CT-004'], resource: 'SITE-001', startDate: '2025-06-30', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Clinical' },
-      { id: 'CT-008', name: 'Treatment Administration Phase', duration: 120, dependencies: ['CT-007'], resource: 'SITE-001', startDate: '2025-10-13', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Clinical' },
-      { id: 'CT-009', name: 'Adverse Event Monitoring', duration: 150, dependencies: ['CT-007'], resource: 'SAFETY-001', startDate: '2025-10-13', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 5, type: 'Safety' },
-      { id: 'CT-010', name: 'Data Lock & Statistical Analysis', duration: 30, dependencies: ['CT-008'], resource: 'STAT-001', startDate: '2026-02-23', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Analysis' },
-      { id: 'CT-011', name: 'Clinical Study Report', duration: 25, dependencies: ['CT-010'], resource: 'MW-001', startDate: '2026-04-06', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Documentation' },
-      { id: 'CT-012', name: 'FDA Submission Preparation', duration: 20, dependencies: ['CT-011'], resource: 'REG-001', startDate: '2026-05-11', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Regulatory' }
+      { id: 'CT-001', name: 'Protocol Development & IRB Submission', duration: 30, dependencies: [], resource: 'CRA-001', startDate: '2025-01-06', status: 'completed', daysDelayed: 5, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Regulatory', ES: 0, EF: 30, LS: 0, LF: 30, Predecessor_ID: '', Successor_ID: 'CT-002;CT-005', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Regulatory;IRB;Protocol', Probability: 0.5, Delay_Impact_days: 10, Cost_Impact_of_Risk: 75000 },
+      { id: 'CT-002', name: 'Site Selection & Feasibility', duration: 20, dependencies: ['CT-001'], resource: 'CRA-002', startDate: '2025-02-17', status: 'in-progress', daysDelayed: 3, allocation: 110, completionPercent: 80, isCriticalPath: true, float: 0, type: 'Planning', ES: 30, EF: 50, LS: 30, LF: 50, Predecessor_ID: 'CT-001', Successor_ID: 'CT-003;CT-006', Dependency_Type: 'FS', Resource_Max_FTE: 1.1, Skill_Tags: 'SiteSelection;Feasibility;ClinicalOps', Probability: 0.4, Delay_Impact_days: 5, Cost_Impact_of_Risk: 30000 },
+      { id: 'CT-003', name: 'Site Initiation Visits', duration: 25, dependencies: ['CT-002'], resource: 'CRA-001', startDate: '2025-03-17', status: 'in-progress', daysDelayed: 2, allocation: 120, completionPercent: 40, isCriticalPath: true, float: 0, type: 'Operations', ES: 50, EF: 75, LS: 50, LF: 75, Predecessor_ID: 'CT-002', Successor_ID: 'CT-004', Dependency_Type: 'FS', Resource_Max_FTE: 1.2, Skill_Tags: 'SIV;Training;Clinical', Probability: 0.4, Delay_Impact_days: 4, Cost_Impact_of_Risk: 20000 },
+      { id: 'CT-004', name: 'Patient Recruitment Campaign', duration: 60, dependencies: ['CT-003'], resource: 'RECRUIT-001', startDate: '2025-04-21', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Recruitment', ES: 75, EF: 135, LS: 75, LF: 135, Predecessor_ID: 'CT-003', Successor_ID: 'CT-007', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Recruitment;Marketing;Patient', Probability: 0.6, Delay_Impact_days: 15, Cost_Impact_of_Risk: 100000 },
+      { id: 'CT-005', name: 'EDC System Setup & Validation', duration: 15, dependencies: ['CT-001'], resource: 'DATA-001', startDate: '2025-02-17', status: 'in-progress', daysDelayed: 4, allocation: 100, completionPercent: 65, isCriticalPath: false, float: 10, type: 'Data Management', ES: 30, EF: 45, LS: 40, LF: 55, Predecessor_ID: 'CT-001', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'EDC;DataMgmt;Validation', Probability: 0.5, Delay_Impact_days: 6, Cost_Impact_of_Risk: 25000 },
+      { id: 'CT-006', name: 'Drug Supply Chain Setup', duration: 18, dependencies: ['CT-002'], resource: 'SUPPLY-001', startDate: '2025-03-17', status: 'in-progress', daysDelayed: 1, allocation: 100, completionPercent: 55, isCriticalPath: false, float: 8, type: 'Logistics', ES: 50, EF: 68, LS: 58, LF: 76, Predecessor_ID: 'CT-002', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Supply;Logistics;DrugMgmt', Probability: 0.3, Delay_Impact_days: 3, Cost_Impact_of_Risk: 50000 },
+      { id: 'CT-007', name: 'Patient Screening & Enrollment', duration: 90, dependencies: ['CT-004'], resource: 'SITE-001', startDate: '2025-06-30', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Clinical', ES: 135, EF: 225, LS: 135, LF: 225, Predecessor_ID: 'CT-004', Successor_ID: 'CT-008;CT-009', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Clinical;Screening;Enrollment', Probability: 0.7, Delay_Impact_days: 20, Cost_Impact_of_Risk: 200000 },
+      { id: 'CT-008', name: 'Treatment Administration Phase', duration: 120, dependencies: ['CT-007'], resource: 'SITE-001', startDate: '2025-10-13', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Clinical', ES: 225, EF: 345, LS: 225, LF: 345, Predecessor_ID: 'CT-007', Successor_ID: 'CT-010', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Clinical;Treatment;Patient', Probability: 0.5, Delay_Impact_days: 15, Cost_Impact_of_Risk: 150000 },
+      { id: 'CT-009', name: 'Adverse Event Monitoring', duration: 150, dependencies: ['CT-007'], resource: 'SAFETY-001', startDate: '2025-10-13', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 5, type: 'Safety', ES: 225, EF: 375, LS: 230, LF: 380, Predecessor_ID: 'CT-007', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Safety;AE;Pharmacovigilance', Probability: 0.4, Delay_Impact_days: 10, Cost_Impact_of_Risk: 80000 },
+      { id: 'CT-010', name: 'Data Lock & Statistical Analysis', duration: 30, dependencies: ['CT-008'], resource: 'STAT-001', startDate: '2026-02-23', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Analysis', ES: 345, EF: 375, LS: 345, LF: 375, Predecessor_ID: 'CT-008', Successor_ID: 'CT-011', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Statistics;Analysis;DataLock', Probability: 0.3, Delay_Impact_days: 5, Cost_Impact_of_Risk: 40000 },
+      { id: 'CT-011', name: 'Clinical Study Report', duration: 25, dependencies: ['CT-010'], resource: 'MW-001', startDate: '2026-04-06', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Documentation', ES: 375, EF: 400, LS: 375, LF: 400, Predecessor_ID: 'CT-010', Successor_ID: 'CT-012', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'MedicalWriting;CSR;Regulatory', Probability: 0.3, Delay_Impact_days: 4, Cost_Impact_of_Risk: 35000 },
+      { id: 'CT-012', name: 'FDA Submission Preparation', duration: 20, dependencies: ['CT-011'], resource: 'REG-001', startDate: '2026-05-11', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Regulatory', ES: 400, EF: 420, LS: 400, LF: 420, Predecessor_ID: 'CT-011', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'FDA;NDA;Regulatory', Probability: 0.4, Delay_Impact_days: 8, Cost_Impact_of_Risk: 500000 }
     ]
   },
   // 4. CONSTRUCTION - COMMERCIAL BUILDING
@@ -1421,18 +1817,18 @@ const SAMPLE_PROJECTS = [
     category: 'Construction',
     budget: 12000000,
     activities: [
-      { id: 'CON-001', name: 'Site Survey & Soil Testing', duration: 14, dependencies: [], resource: 'ENG-001', startDate: '2025-01-06', status: 'completed', daysDelayed: 0, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Pre-Construction' },
-      { id: 'CON-002', name: 'Architectural Design Finalization', duration: 30, dependencies: ['CON-001'], resource: 'ARCH-CON-001', startDate: '2025-01-24', status: 'completed', daysDelayed: 5, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Design' },
-      { id: 'CON-003', name: 'Permits & Regulatory Approvals', duration: 45, dependencies: ['CON-002'], resource: 'LEGAL-001', startDate: '2025-03-07', status: 'in-progress', daysDelayed: 10, allocation: 100, completionPercent: 60, isCriticalPath: true, float: 0, type: 'Regulatory' },
-      { id: 'CON-004', name: 'Foundation & Excavation', duration: 35, dependencies: ['CON-003'], resource: 'CREW-001', startDate: '2025-05-05', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Construction' },
-      { id: 'CON-005', name: 'Structural Steel Erection', duration: 60, dependencies: ['CON-004'], resource: 'STEEL-001', startDate: '2025-06-23', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Construction' },
-      { id: 'CON-006', name: 'Electrical & Plumbing Rough-In', duration: 40, dependencies: ['CON-005'], resource: 'MEP-001', startDate: '2025-09-08', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 10, type: 'MEP' },
-      { id: 'CON-007', name: 'Exterior Facade Installation', duration: 45, dependencies: ['CON-005'], resource: 'FACADE-001', startDate: '2025-09-08', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Construction' },
-      { id: 'CON-008', name: 'Interior Finishing', duration: 50, dependencies: ['CON-006'], resource: 'INT-CON-001', startDate: '2025-11-03', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 5, type: 'Finishing' },
-      { id: 'CON-009', name: 'HVAC System Installation', duration: 35, dependencies: ['CON-006'], resource: 'HVAC-001', startDate: '2025-11-03', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'MEP' },
-      { id: 'CON-010', name: 'Fire Safety & Sprinkler Systems', duration: 20, dependencies: ['CON-009'], resource: 'FIRE-001', startDate: '2025-12-22', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Safety' },
-      { id: 'CON-011', name: 'Final Inspections & Certifications', duration: 15, dependencies: ['CON-008', 'CON-010'], resource: 'INSP-001', startDate: '2026-01-19', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Compliance' },
-      { id: 'CON-012', name: 'Handover & Occupancy', duration: 7, dependencies: ['CON-011'], resource: 'PM-CON-001', startDate: '2026-02-09', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Closeout' }
+      { id: 'CON-001', name: 'Site Survey & Soil Testing', duration: 14, dependencies: [], resource: 'ENG-001', startDate: '2025-01-06', status: 'completed', daysDelayed: 0, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Pre-Construction', ES: 0, EF: 14, LS: 0, LF: 14, Predecessor_ID: '', Successor_ID: 'CON-002', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Survey;Geotechnical;Engineering', Probability: 0.2, Delay_Impact_days: 2, Cost_Impact_of_Risk: 10000 },
+      { id: 'CON-002', name: 'Architectural Design Finalization', duration: 30, dependencies: ['CON-001'], resource: 'ARCH-CON-001', startDate: '2025-01-24', status: 'completed', daysDelayed: 5, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Design', ES: 14, EF: 44, LS: 14, LF: 44, Predecessor_ID: 'CON-001', Successor_ID: 'CON-003', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Architecture;Design;BIM', Probability: 0.4, Delay_Impact_days: 8, Cost_Impact_of_Risk: 50000 },
+      { id: 'CON-003', name: 'Permits & Regulatory Approvals', duration: 45, dependencies: ['CON-002'], resource: 'LEGAL-001', startDate: '2025-03-07', status: 'in-progress', daysDelayed: 10, allocation: 100, completionPercent: 60, isCriticalPath: true, float: 0, type: 'Regulatory', ES: 44, EF: 89, LS: 44, LF: 89, Predecessor_ID: 'CON-002', Successor_ID: 'CON-004', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Permits;Legal;Zoning', Probability: 0.6, Delay_Impact_days: 15, Cost_Impact_of_Risk: 100000 },
+      { id: 'CON-004', name: 'Foundation & Excavation', duration: 35, dependencies: ['CON-003'], resource: 'CREW-001', startDate: '2025-05-05', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Construction', ES: 89, EF: 124, LS: 89, LF: 124, Predecessor_ID: 'CON-003', Successor_ID: 'CON-005', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Foundation;Excavation;Concrete', Probability: 0.4, Delay_Impact_days: 10, Cost_Impact_of_Risk: 200000 },
+      { id: 'CON-005', name: 'Structural Steel Erection', duration: 60, dependencies: ['CON-004'], resource: 'STEEL-001', startDate: '2025-06-23', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Construction', ES: 124, EF: 184, LS: 124, LF: 184, Predecessor_ID: 'CON-004', Successor_ID: 'CON-006;CON-007', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Steel;Structural;Welding', Probability: 0.5, Delay_Impact_days: 12, Cost_Impact_of_Risk: 300000 },
+      { id: 'CON-006', name: 'Electrical & Plumbing Rough-In', duration: 40, dependencies: ['CON-005'], resource: 'MEP-001', startDate: '2025-09-08', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 10, type: 'MEP', ES: 184, EF: 224, LS: 194, LF: 234, Predecessor_ID: 'CON-005', Successor_ID: 'CON-008;CON-009', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Electrical;Plumbing;MEP', Probability: 0.3, Delay_Impact_days: 6, Cost_Impact_of_Risk: 80000 },
+      { id: 'CON-007', name: 'Exterior Facade Installation', duration: 45, dependencies: ['CON-005'], resource: 'FACADE-001', startDate: '2025-09-08', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Construction', ES: 184, EF: 229, LS: 184, LF: 229, Predecessor_ID: 'CON-005', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Facade;Curtainwall;Exterior', Probability: 0.4, Delay_Impact_days: 8, Cost_Impact_of_Risk: 150000 },
+      { id: 'CON-008', name: 'Interior Finishing', duration: 50, dependencies: ['CON-006'], resource: 'INT-CON-001', startDate: '2025-11-03', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 5, type: 'Finishing', ES: 224, EF: 274, LS: 229, LF: 279, Predecessor_ID: 'CON-006', Successor_ID: 'CON-011', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Interior;Finishing;Drywall', Probability: 0.3, Delay_Impact_days: 5, Cost_Impact_of_Risk: 75000 },
+      { id: 'CON-009', name: 'HVAC System Installation', duration: 35, dependencies: ['CON-006'], resource: 'HVAC-001', startDate: '2025-11-03', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'MEP', ES: 224, EF: 259, LS: 224, LF: 259, Predecessor_ID: 'CON-006', Successor_ID: 'CON-010', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'HVAC;Mechanical;AirConditioning', Probability: 0.4, Delay_Impact_days: 7, Cost_Impact_of_Risk: 120000 },
+      { id: 'CON-010', name: 'Fire Safety & Sprinkler Systems', duration: 20, dependencies: ['CON-009'], resource: 'FIRE-001', startDate: '2025-12-22', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Safety', ES: 259, EF: 279, LS: 259, LF: 279, Predecessor_ID: 'CON-009', Successor_ID: 'CON-011', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'FireSafety;Sprinkler;LifeSafety', Probability: 0.3, Delay_Impact_days: 4, Cost_Impact_of_Risk: 60000 },
+      { id: 'CON-011', name: 'Final Inspections & Certifications', duration: 15, dependencies: ['CON-008', 'CON-010'], resource: 'INSP-001', startDate: '2026-01-19', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Compliance', ES: 279, EF: 294, LS: 279, LF: 294, Predecessor_ID: 'CON-008;CON-010', Successor_ID: 'CON-012', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Inspection;Compliance;Certification', Probability: 0.4, Delay_Impact_days: 5, Cost_Impact_of_Risk: 50000 },
+      { id: 'CON-012', name: 'Handover & Occupancy', duration: 7, dependencies: ['CON-011'], resource: 'PM-CON-001', startDate: '2026-02-09', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Closeout', ES: 294, EF: 301, LS: 294, LF: 301, Predecessor_ID: 'CON-011', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Handover;Closeout;Occupancy', Probability: 0.2, Delay_Impact_days: 3, Cost_Impact_of_Risk: 30000 }
     ]
   },
   // 5. IT INFRASTRUCTURE - CLOUD MIGRATION
@@ -1441,18 +1837,18 @@ const SAMPLE_PROJECTS = [
     category: 'IT Infrastructure',
     budget: 1800000,
     activities: [
-      { id: 'CLD-001', name: 'Current Infrastructure Assessment', duration: 15, dependencies: [], resource: 'CLOUD-ARCH-001', startDate: '2025-01-06', status: 'completed', daysDelayed: 0, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Assessment' },
-      { id: 'CLD-002', name: 'Cloud Architecture Design', duration: 20, dependencies: ['CLD-001'], resource: 'CLOUD-ARCH-001', startDate: '2025-01-27', status: 'completed', daysDelayed: 2, allocation: 110, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Design' },
-      { id: 'CLD-003', name: 'Security & Compliance Framework', duration: 18, dependencies: ['CLD-002'], resource: 'SEC-001', startDate: '2025-02-24', status: 'in-progress', daysDelayed: 3, allocation: 120, completionPercent: 70, isCriticalPath: true, float: 0, type: 'Security' },
-      { id: 'CLD-004', name: 'Network & VPC Configuration', duration: 12, dependencies: ['CLD-003'], resource: 'NET-001', startDate: '2025-03-20', status: 'in-progress', daysDelayed: 1, allocation: 100, completionPercent: 50, isCriticalPath: true, float: 0, type: 'Infrastructure' },
-      { id: 'CLD-005', name: 'Database Migration (RDS/Aurora)', duration: 25, dependencies: ['CLD-004'], resource: 'DBA-CLD-001', startDate: '2025-04-07', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Migration' },
-      { id: 'CLD-006', name: 'Application Containerization (EKS)', duration: 30, dependencies: ['CLD-004'], resource: 'DEVOPS-CLD-001', startDate: '2025-04-07', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 5, type: 'Migration' },
-      { id: 'CLD-007', name: 'CI/CD Pipeline Setup', duration: 15, dependencies: ['CLD-006'], resource: 'DEVOPS-CLD-001', startDate: '2025-05-19', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 8, type: 'DevOps' },
-      { id: 'CLD-008', name: 'Data Sync & Validation', duration: 14, dependencies: ['CLD-005'], resource: 'DBA-CLD-001', startDate: '2025-05-12', status: 'not-started', daysDelayed: 0, allocation: 130, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Validation' },
-      { id: 'CLD-009', name: 'Performance & Load Testing', duration: 10, dependencies: ['CLD-006', 'CLD-008'], resource: 'QA-CLD-001', startDate: '2025-06-02', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Testing' },
-      { id: 'CLD-010', name: 'Disaster Recovery Setup', duration: 12, dependencies: ['CLD-009'], resource: 'CLOUD-ARCH-001', startDate: '2025-06-16', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Infrastructure' },
-      { id: 'CLD-011', name: 'Production Cutover', duration: 5, dependencies: ['CLD-010'], resource: 'CLOUD-ARCH-001', startDate: '2025-07-02', status: 'not-started', daysDelayed: 0, allocation: 150, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Deployment' },
-      { id: 'CLD-012', name: 'Legacy System Decommission', duration: 20, dependencies: ['CLD-011'], resource: 'IT-LEGACY-001', startDate: '2025-07-09', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 15, type: 'Closeout' }
+      { id: 'CLD-001', name: 'Current Infrastructure Assessment', duration: 15, dependencies: [], resource: 'CLOUD-ARCH-001', startDate: '2025-01-06', status: 'completed', daysDelayed: 0, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Assessment', ES: 0, EF: 15, LS: 0, LF: 15, Predecessor_ID: '', Successor_ID: 'CLD-002', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'AWS;Assessment;Infrastructure', Probability: 0.2, Delay_Impact_days: 2, Cost_Impact_of_Risk: 10000 },
+      { id: 'CLD-002', name: 'Cloud Architecture Design', duration: 20, dependencies: ['CLD-001'], resource: 'CLOUD-ARCH-001', startDate: '2025-01-27', status: 'completed', daysDelayed: 2, allocation: 110, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Design', ES: 15, EF: 35, LS: 15, LF: 35, Predecessor_ID: 'CLD-001', Successor_ID: 'CLD-003', Dependency_Type: 'FS', Resource_Max_FTE: 1.1, Skill_Tags: 'AWS;Architecture;Design', Probability: 0.3, Delay_Impact_days: 4, Cost_Impact_of_Risk: 25000 },
+      { id: 'CLD-003', name: 'Security & Compliance Framework', duration: 18, dependencies: ['CLD-002'], resource: 'SEC-001', startDate: '2025-02-24', status: 'in-progress', daysDelayed: 3, allocation: 120, completionPercent: 70, isCriticalPath: true, float: 0, type: 'Security', ES: 35, EF: 53, LS: 35, LF: 53, Predecessor_ID: 'CLD-002', Successor_ID: 'CLD-004', Dependency_Type: 'FS', Resource_Max_FTE: 1.2, Skill_Tags: 'Security;Compliance;AWS', Probability: 0.5, Delay_Impact_days: 6, Cost_Impact_of_Risk: 40000 },
+      { id: 'CLD-004', name: 'Network & VPC Configuration', duration: 12, dependencies: ['CLD-003'], resource: 'NET-001', startDate: '2025-03-20', status: 'in-progress', daysDelayed: 1, allocation: 100, completionPercent: 50, isCriticalPath: true, float: 0, type: 'Infrastructure', ES: 53, EF: 65, LS: 53, LF: 65, Predecessor_ID: 'CLD-003', Successor_ID: 'CLD-005;CLD-006', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Networking;VPC;AWS', Probability: 0.3, Delay_Impact_days: 3, Cost_Impact_of_Risk: 20000 },
+      { id: 'CLD-005', name: 'Database Migration (RDS/Aurora)', duration: 25, dependencies: ['CLD-004'], resource: 'DBA-CLD-001', startDate: '2025-04-07', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Migration', ES: 65, EF: 90, LS: 65, LF: 90, Predecessor_ID: 'CLD-004', Successor_ID: 'CLD-008', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'RDS;Aurora;Database;Migration', Probability: 0.5, Delay_Impact_days: 8, Cost_Impact_of_Risk: 60000 },
+      { id: 'CLD-006', name: 'Application Containerization (EKS)', duration: 30, dependencies: ['CLD-004'], resource: 'DEVOPS-CLD-001', startDate: '2025-04-07', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 5, type: 'Migration', ES: 65, EF: 95, LS: 70, LF: 100, Predecessor_ID: 'CLD-004', Successor_ID: 'CLD-007;CLD-009', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'EKS;Kubernetes;Docker;Containers', Probability: 0.4, Delay_Impact_days: 6, Cost_Impact_of_Risk: 45000 },
+      { id: 'CLD-007', name: 'CI/CD Pipeline Setup', duration: 15, dependencies: ['CLD-006'], resource: 'DEVOPS-CLD-001', startDate: '2025-05-19', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 8, type: 'DevOps', ES: 95, EF: 110, LS: 103, LF: 118, Predecessor_ID: 'CLD-006', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'CI/CD;Jenkins;GitOps', Probability: 0.3, Delay_Impact_days: 3, Cost_Impact_of_Risk: 15000 },
+      { id: 'CLD-008', name: 'Data Sync & Validation', duration: 14, dependencies: ['CLD-005'], resource: 'DBA-CLD-001', startDate: '2025-05-12', status: 'not-started', daysDelayed: 0, allocation: 130, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Validation', ES: 90, EF: 104, LS: 90, LF: 104, Predecessor_ID: 'CLD-005', Successor_ID: 'CLD-009', Dependency_Type: 'FS', Resource_Max_FTE: 1.3, Skill_Tags: 'DataSync;Validation;DMS', Probability: 0.4, Delay_Impact_days: 4, Cost_Impact_of_Risk: 35000 },
+      { id: 'CLD-009', name: 'Performance & Load Testing', duration: 10, dependencies: ['CLD-006', 'CLD-008'], resource: 'QA-CLD-001', startDate: '2025-06-02', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Testing', ES: 104, EF: 114, LS: 104, LF: 114, Predecessor_ID: 'CLD-006;CLD-008', Successor_ID: 'CLD-010', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'LoadTesting;Performance;JMeter', Probability: 0.3, Delay_Impact_days: 3, Cost_Impact_of_Risk: 20000 },
+      { id: 'CLD-010', name: 'Disaster Recovery Setup', duration: 12, dependencies: ['CLD-009'], resource: 'CLOUD-ARCH-001', startDate: '2025-06-16', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Infrastructure', ES: 114, EF: 126, LS: 114, LF: 126, Predecessor_ID: 'CLD-009', Successor_ID: 'CLD-011', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'DR;Backup;HighAvailability', Probability: 0.3, Delay_Impact_days: 3, Cost_Impact_of_Risk: 25000 },
+      { id: 'CLD-011', name: 'Production Cutover', duration: 5, dependencies: ['CLD-010'], resource: 'CLOUD-ARCH-001', startDate: '2025-07-02', status: 'not-started', daysDelayed: 0, allocation: 150, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Deployment', ES: 126, EF: 131, LS: 126, LF: 131, Predecessor_ID: 'CLD-010', Successor_ID: 'CLD-012', Dependency_Type: 'FS', Resource_Max_FTE: 1.5, Skill_Tags: 'Cutover;GoLive;Migration', Probability: 0.4, Delay_Impact_days: 5, Cost_Impact_of_Risk: 80000 },
+      { id: 'CLD-012', name: 'Legacy System Decommission', duration: 20, dependencies: ['CLD-011'], resource: 'IT-LEGACY-001', startDate: '2025-07-09', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 15, type: 'Closeout', ES: 131, EF: 151, LS: 146, LF: 166, Predecessor_ID: 'CLD-011', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Decommission;Legacy;Cleanup', Probability: 0.2, Delay_Impact_days: 3, Cost_Impact_of_Risk: 15000 }
     ]
   },
   // 6. MARKETING - PRODUCT LAUNCH CAMPAIGN
@@ -1461,18 +1857,18 @@ const SAMPLE_PROJECTS = [
     category: 'Marketing',
     budget: 500000,
     activities: [
-      { id: 'MKT-001', name: 'Market Research & Competitive Analysis', duration: 14, dependencies: [], resource: 'MKT-ANALYST-001', startDate: '2025-01-06', status: 'completed', daysDelayed: 0, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Research' },
-      { id: 'MKT-002', name: 'Brand Positioning & Messaging', duration: 10, dependencies: ['MKT-001'], resource: 'BRAND-001', startDate: '2025-01-24', status: 'completed', daysDelayed: 1, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Strategy' },
-      { id: 'MKT-003', name: 'Creative Asset Development', duration: 21, dependencies: ['MKT-002'], resource: 'CREATIVE-001', startDate: '2025-02-07', status: 'in-progress', daysDelayed: 3, allocation: 120, completionPercent: 65, isCriticalPath: true, float: 0, type: 'Creative' },
-      { id: 'MKT-004', name: 'Website & Landing Page Design', duration: 18, dependencies: ['MKT-003'], resource: 'WEB-001', startDate: '2025-03-07', status: 'in-progress', daysDelayed: 2, allocation: 100, completionPercent: 40, isCriticalPath: true, float: 0, type: 'Digital' },
-      { id: 'MKT-005', name: 'Social Media Campaign Setup', duration: 10, dependencies: ['MKT-003'], resource: 'SOCIAL-001', startDate: '2025-03-07', status: 'in-progress', daysDelayed: 0, allocation: 100, completionPercent: 55, isCriticalPath: false, float: 8, type: 'Digital' },
-      { id: 'MKT-006', name: 'Influencer Partnership Outreach', duration: 14, dependencies: ['MKT-002'], resource: 'PR-001', startDate: '2025-02-07', status: 'in-progress', daysDelayed: 4, allocation: 100, completionPercent: 50, isCriticalPath: false, float: 12, type: 'PR' },
-      { id: 'MKT-007', name: 'Press Kit & Media Materials', duration: 12, dependencies: ['MKT-003'], resource: 'PR-001', startDate: '2025-03-07', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 10, type: 'PR' },
-      { id: 'MKT-008', name: 'Email Marketing Automation', duration: 8, dependencies: ['MKT-004'], resource: 'EMAIL-001', startDate: '2025-04-01', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Digital' },
-      { id: 'MKT-009', name: 'Paid Advertising Campaign', duration: 30, dependencies: ['MKT-004', 'MKT-005'], resource: 'ADS-001', startDate: '2025-04-01', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Advertising' },
-      { id: 'MKT-010', name: 'Launch Event Planning', duration: 20, dependencies: ['MKT-003'], resource: 'EVENT-001', startDate: '2025-03-07', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 15, type: 'Events' },
-      { id: 'MKT-011', name: 'Product Launch Day Execution', duration: 3, dependencies: ['MKT-008', 'MKT-009'], resource: 'MKT-MGR-001', startDate: '2025-05-05', status: 'not-started', daysDelayed: 0, allocation: 150, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Launch' },
-      { id: 'MKT-012', name: 'Post-Launch Analytics & Reporting', duration: 14, dependencies: ['MKT-011'], resource: 'MKT-ANALYST-001', startDate: '2025-05-08', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Analytics' }
+      { id: 'MKT-001', name: 'Market Research & Competitive Analysis', duration: 14, dependencies: [], resource: 'MKT-ANALYST-001', startDate: '2025-01-06', status: 'completed', daysDelayed: 0, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Research', ES: 0, EF: 14, LS: 0, LF: 14, Predecessor_ID: '', Successor_ID: 'MKT-002', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'MarketResearch;Analysis;Strategy', Probability: 0.2, Delay_Impact_days: 2, Cost_Impact_of_Risk: 5000 },
+      { id: 'MKT-002', name: 'Brand Positioning & Messaging', duration: 10, dependencies: ['MKT-001'], resource: 'BRAND-001', startDate: '2025-01-24', status: 'completed', daysDelayed: 1, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Strategy', ES: 14, EF: 24, LS: 14, LF: 24, Predecessor_ID: 'MKT-001', Successor_ID: 'MKT-003;MKT-006', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Branding;Messaging;Strategy', Probability: 0.2, Delay_Impact_days: 2, Cost_Impact_of_Risk: 8000 },
+      { id: 'MKT-003', name: 'Creative Asset Development', duration: 21, dependencies: ['MKT-002'], resource: 'CREATIVE-001', startDate: '2025-02-07', status: 'in-progress', daysDelayed: 3, allocation: 120, completionPercent: 65, isCriticalPath: true, float: 0, type: 'Creative', ES: 24, EF: 45, LS: 24, LF: 45, Predecessor_ID: 'MKT-002', Successor_ID: 'MKT-004;MKT-005;MKT-007;MKT-010', Dependency_Type: 'FS', Resource_Max_FTE: 1.2, Skill_Tags: 'Creative;Design;Graphics', Probability: 0.4, Delay_Impact_days: 5, Cost_Impact_of_Risk: 20000 },
+      { id: 'MKT-004', name: 'Website & Landing Page Design', duration: 18, dependencies: ['MKT-003'], resource: 'WEB-001', startDate: '2025-03-07', status: 'in-progress', daysDelayed: 2, allocation: 100, completionPercent: 40, isCriticalPath: true, float: 0, type: 'Digital', ES: 45, EF: 63, LS: 45, LF: 63, Predecessor_ID: 'MKT-003', Successor_ID: 'MKT-008;MKT-009', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'WebDesign;Landing;UX', Probability: 0.3, Delay_Impact_days: 4, Cost_Impact_of_Risk: 15000 },
+      { id: 'MKT-005', name: 'Social Media Campaign Setup', duration: 10, dependencies: ['MKT-003'], resource: 'SOCIAL-001', startDate: '2025-03-07', status: 'in-progress', daysDelayed: 0, allocation: 100, completionPercent: 55, isCriticalPath: false, float: 8, type: 'Digital', ES: 45, EF: 55, LS: 53, LF: 63, Predecessor_ID: 'MKT-003', Successor_ID: 'MKT-009', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'SocialMedia;Marketing;Digital', Probability: 0.2, Delay_Impact_days: 2, Cost_Impact_of_Risk: 5000 },
+      { id: 'MKT-006', name: 'Influencer Partnership Outreach', duration: 14, dependencies: ['MKT-002'], resource: 'PR-001', startDate: '2025-02-07', status: 'in-progress', daysDelayed: 4, allocation: 100, completionPercent: 50, isCriticalPath: false, float: 12, type: 'PR', ES: 24, EF: 38, LS: 36, LF: 50, Predecessor_ID: 'MKT-002', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Influencer;PR;Partnerships', Probability: 0.4, Delay_Impact_days: 5, Cost_Impact_of_Risk: 12000 },
+      { id: 'MKT-007', name: 'Press Kit & Media Materials', duration: 12, dependencies: ['MKT-003'], resource: 'PR-001', startDate: '2025-03-07', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 10, type: 'PR', ES: 45, EF: 57, LS: 55, LF: 67, Predecessor_ID: 'MKT-003', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'PR;Media;PressKit', Probability: 0.2, Delay_Impact_days: 2, Cost_Impact_of_Risk: 6000 },
+      { id: 'MKT-008', name: 'Email Marketing Automation', duration: 8, dependencies: ['MKT-004'], resource: 'EMAIL-001', startDate: '2025-04-01', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Digital', ES: 63, EF: 71, LS: 63, LF: 71, Predecessor_ID: 'MKT-004', Successor_ID: 'MKT-011', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Email;Marketing;Automation', Probability: 0.2, Delay_Impact_days: 2, Cost_Impact_of_Risk: 4000 },
+      { id: 'MKT-009', name: 'Paid Advertising Campaign', duration: 30, dependencies: ['MKT-004', 'MKT-005'], resource: 'ADS-001', startDate: '2025-04-01', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Advertising', ES: 63, EF: 93, LS: 63, LF: 93, Predecessor_ID: 'MKT-004;MKT-005', Successor_ID: 'MKT-011', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'PPC;Advertising;GoogleAds', Probability: 0.3, Delay_Impact_days: 4, Cost_Impact_of_Risk: 25000 },
+      { id: 'MKT-010', name: 'Launch Event Planning', duration: 20, dependencies: ['MKT-003'], resource: 'EVENT-001', startDate: '2025-03-07', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 15, type: 'Events', ES: 45, EF: 65, LS: 60, LF: 80, Predecessor_ID: 'MKT-003', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Events;Planning;Logistics', Probability: 0.3, Delay_Impact_days: 3, Cost_Impact_of_Risk: 10000 },
+      { id: 'MKT-011', name: 'Product Launch Day Execution', duration: 3, dependencies: ['MKT-008', 'MKT-009'], resource: 'MKT-MGR-001', startDate: '2025-05-05', status: 'not-started', daysDelayed: 0, allocation: 150, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Launch', ES: 93, EF: 96, LS: 93, LF: 96, Predecessor_ID: 'MKT-008;MKT-009', Successor_ID: 'MKT-012', Dependency_Type: 'FS', Resource_Max_FTE: 1.5, Skill_Tags: 'Launch;Execution;Marketing', Probability: 0.4, Delay_Impact_days: 3, Cost_Impact_of_Risk: 30000 },
+      { id: 'MKT-012', name: 'Post-Launch Analytics & Reporting', duration: 14, dependencies: ['MKT-011'], resource: 'MKT-ANALYST-001', startDate: '2025-05-08', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Analytics', ES: 96, EF: 110, LS: 96, LF: 110, Predecessor_ID: 'MKT-011', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Analytics;Reporting;Metrics', Probability: 0.2, Delay_Impact_days: 2, Cost_Impact_of_Risk: 5000 }
     ]
   },
   // 7. MOBILE APP DEVELOPMENT
@@ -1481,21 +1877,25 @@ const SAMPLE_PROJECTS = [
     category: 'Healthcare Software',
     budget: 650000,
     activities: [
-      { id: 'APP-001', name: 'Product Discovery & User Research', duration: 12, dependencies: [], resource: 'UX-001', startDate: '2025-01-06', status: 'completed', daysDelayed: 0, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Research' },
-      { id: 'APP-002', name: 'HIPAA Compliance Requirements', duration: 10, dependencies: ['APP-001'], resource: 'COMP-APP-001', startDate: '2025-01-22', status: 'completed', daysDelayed: 2, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Compliance' },
-      { id: 'APP-003', name: 'UI/UX Design & Prototyping', duration: 18, dependencies: ['APP-001'], resource: 'UX-001', startDate: '2025-01-22', status: 'in-progress', daysDelayed: 3, allocation: 110, completionPercent: 75, isCriticalPath: false, float: 5, type: 'Design' },
-      { id: 'APP-004', name: 'Backend API Development', duration: 25, dependencies: ['APP-002'], resource: 'BE-APP-001', startDate: '2025-02-05', status: 'in-progress', daysDelayed: 4, allocation: 130, completionPercent: 45, isCriticalPath: true, float: 0, type: 'Development' },
-      { id: 'APP-005', name: 'iOS App Development', duration: 30, dependencies: ['APP-003', 'APP-004'], resource: 'IOS-001', startDate: '2025-03-10', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Development' },
-      { id: 'APP-006', name: 'Android App Development', duration: 30, dependencies: ['APP-003', 'APP-004'], resource: 'AND-001', startDate: '2025-03-10', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 3, type: 'Development' },
-      { id: 'APP-007', name: 'EHR Integration (HL7/FHIR)', duration: 20, dependencies: ['APP-004'], resource: 'INT-APP-001', startDate: '2025-03-10', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Integration' },
-      { id: 'APP-008', name: 'Security Penetration Testing', duration: 10, dependencies: ['APP-005', 'APP-006'], resource: 'SEC-APP-001', startDate: '2025-04-21', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Security' },
-      { id: 'APP-009', name: 'Beta Testing with Patients', duration: 14, dependencies: ['APP-008'], resource: 'QA-APP-001', startDate: '2025-05-05', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Testing' },
-      { id: 'APP-010', name: 'App Store Submission & Review', duration: 10, dependencies: ['APP-009'], resource: 'PM-APP-001', startDate: '2025-05-23', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Deployment' },
-      { id: 'APP-011', name: 'Production Launch', duration: 5, dependencies: ['APP-010'], resource: 'PM-APP-001', startDate: '2025-06-06', status: 'not-started', daysDelayed: 0, allocation: 120, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Launch' },
-      { id: 'APP-012', name: 'Post-Launch Support & Monitoring', duration: 30, dependencies: ['APP-011'], resource: 'SUPPORT-001', startDate: '2025-06-13', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 10, type: 'Support' }
+      { id: 'APP-001', name: 'Product Discovery & User Research', duration: 12, dependencies: [], resource: 'UX-001', startDate: '2025-01-06', status: 'completed', daysDelayed: 0, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Research', ES: 0, EF: 12, LS: 0, LF: 12, Predecessor_ID: '', Successor_ID: 'APP-002;APP-003', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'UX;Research;Discovery', Probability: 0.2, Delay_Impact_days: 2, Cost_Impact_of_Risk: 8000 },
+      { id: 'APP-002', name: 'HIPAA Compliance Requirements', duration: 10, dependencies: ['APP-001'], resource: 'COMP-APP-001', startDate: '2025-01-22', status: 'completed', daysDelayed: 2, allocation: 100, completionPercent: 100, isCriticalPath: true, float: 0, type: 'Compliance', ES: 12, EF: 22, LS: 12, LF: 22, Predecessor_ID: 'APP-001', Successor_ID: 'APP-004', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'HIPAA;Compliance;Healthcare', Probability: 0.4, Delay_Impact_days: 5, Cost_Impact_of_Risk: 25000 },
+      { id: 'APP-003', name: 'UI/UX Design & Prototyping', duration: 18, dependencies: ['APP-001'], resource: 'UX-001', startDate: '2025-01-22', status: 'in-progress', daysDelayed: 3, allocation: 110, completionPercent: 75, isCriticalPath: false, float: 5, type: 'Design', ES: 12, EF: 30, LS: 17, LF: 35, Predecessor_ID: 'APP-001', Successor_ID: 'APP-005;APP-006', Dependency_Type: 'FS', Resource_Max_FTE: 1.1, Skill_Tags: 'UI;UX;Prototyping;Figma', Probability: 0.3, Delay_Impact_days: 4, Cost_Impact_of_Risk: 15000 },
+      { id: 'APP-004', name: 'Backend API Development', duration: 25, dependencies: ['APP-002'], resource: 'BE-APP-001', startDate: '2025-02-05', status: 'in-progress', daysDelayed: 4, allocation: 130, completionPercent: 45, isCriticalPath: true, float: 0, type: 'Development', ES: 22, EF: 47, LS: 22, LF: 47, Predecessor_ID: 'APP-002', Successor_ID: 'APP-005;APP-006;APP-007', Dependency_Type: 'FS', Resource_Max_FTE: 1.3, Skill_Tags: 'Backend;API;Node.js', Probability: 0.5, Delay_Impact_days: 7, Cost_Impact_of_Risk: 35000 },
+      { id: 'APP-005', name: 'iOS App Development', duration: 30, dependencies: ['APP-003', 'APP-004'], resource: 'IOS-001', startDate: '2025-03-10', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Development', ES: 47, EF: 77, LS: 47, LF: 77, Predecessor_ID: 'APP-003;APP-004', Successor_ID: 'APP-008', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'iOS;Swift;Mobile', Probability: 0.4, Delay_Impact_days: 6, Cost_Impact_of_Risk: 30000 },
+      { id: 'APP-006', name: 'Android App Development', duration: 30, dependencies: ['APP-003', 'APP-004'], resource: 'AND-001', startDate: '2025-03-10', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 3, type: 'Development', ES: 47, EF: 77, LS: 50, LF: 80, Predecessor_ID: 'APP-003;APP-004', Successor_ID: 'APP-008', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Android;Kotlin;Mobile', Probability: 0.4, Delay_Impact_days: 6, Cost_Impact_of_Risk: 28000 },
+      { id: 'APP-007', name: 'EHR Integration (HL7/FHIR)', duration: 20, dependencies: ['APP-004'], resource: 'INT-APP-001', startDate: '2025-03-10', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Integration', ES: 47, EF: 67, LS: 47, LF: 67, Predecessor_ID: 'APP-004', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'HL7;FHIR;EHR;Integration', Probability: 0.5, Delay_Impact_days: 8, Cost_Impact_of_Risk: 40000 },
+      { id: 'APP-008', name: 'Security Penetration Testing', duration: 10, dependencies: ['APP-005', 'APP-006'], resource: 'SEC-APP-001', startDate: '2025-04-21', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Security', ES: 77, EF: 87, LS: 77, LF: 87, Predecessor_ID: 'APP-005;APP-006', Successor_ID: 'APP-009', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'PenTest;Security;OWASP', Probability: 0.4, Delay_Impact_days: 4, Cost_Impact_of_Risk: 20000 },
+      { id: 'APP-009', name: 'Beta Testing with Patients', duration: 14, dependencies: ['APP-008'], resource: 'QA-APP-001', startDate: '2025-05-05', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Testing', ES: 87, EF: 101, LS: 87, LF: 101, Predecessor_ID: 'APP-008', Successor_ID: 'APP-010', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'BetaTesting;QA;Patient', Probability: 0.3, Delay_Impact_days: 3, Cost_Impact_of_Risk: 12000 },
+      { id: 'APP-010', name: 'App Store Submission & Review', duration: 10, dependencies: ['APP-009'], resource: 'PM-APP-001', startDate: '2025-05-23', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Deployment', ES: 101, EF: 111, LS: 101, LF: 111, Predecessor_ID: 'APP-009', Successor_ID: 'APP-011', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'AppStore;Submission;Review', Probability: 0.4, Delay_Impact_days: 5, Cost_Impact_of_Risk: 15000 },
+      { id: 'APP-011', name: 'Production Launch', duration: 5, dependencies: ['APP-010'], resource: 'PM-APP-001', startDate: '2025-06-06', status: 'not-started', daysDelayed: 0, allocation: 120, completionPercent: 0, isCriticalPath: true, float: 0, type: 'Launch', ES: 111, EF: 116, LS: 111, LF: 116, Predecessor_ID: 'APP-010', Successor_ID: 'APP-012', Dependency_Type: 'FS', Resource_Max_FTE: 1.2, Skill_Tags: 'Launch;GoLive;Mobile', Probability: 0.3, Delay_Impact_days: 3, Cost_Impact_of_Risk: 20000 },
+      { id: 'APP-012', name: 'Post-Launch Support & Monitoring', duration: 30, dependencies: ['APP-011'], resource: 'SUPPORT-001', startDate: '2025-06-13', status: 'not-started', daysDelayed: 0, allocation: 100, completionPercent: 0, isCriticalPath: false, float: 10, type: 'Support', ES: 116, EF: 146, LS: 126, LF: 156, Predecessor_ID: 'APP-011', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'Support;Monitoring;DevOps', Probability: 0.2, Delay_Impact_days: 3, Cost_Impact_of_Risk: 10000 }
     ]
   }
 ];
+
+// ===================================
+// AI CHAT WIDGET COMPONENT
+// ===================================
 
 // ===================================
 // AI CHAT WIDGET COMPONENT
@@ -1551,6 +1951,40 @@ const AIChatWidget = ({ projectData, riskResults, selectedRisk, aiInsight, store
 
     if (!emailMatch) return null;
 
+    // Check if user mentioned a different project name
+    const currentProjectName = projectData?.name || '';
+    if (currentProjectName) {
+      // Extract potential project names from the user input (text after "of" or "for")
+      const projectMentionPattern = /(?:of|for)\s+(.+?)(?:\s+project)?$/i;
+      const projectMention = userInput.match(projectMentionPattern);
+
+      if (projectMention) {
+        const mentionedProject = projectMention[1].trim();
+        // Check if the mentioned project is different from current project
+        const currentNameLower = currentProjectName.toLowerCase();
+        const mentionedLower = mentionedProject.toLowerCase();
+
+        // If the mentioned project doesn't match current project (and isn't a generic term)
+        if (!currentNameLower.includes(mentionedLower) &&
+            !mentionedLower.includes(currentNameLower.split(' ')[0]) &&
+            !['this project', 'current project', 'selected project', 'the project'].includes(mentionedLower)) {
+          return {
+            success: false,
+            message: `⚠️ You've asked to send a report for **"${mentionedProject}"**, but the currently selected project is **"${currentProjectName}"**.
+
+I can only send reports for the currently selected project. To send a report for a different project:
+
+1. 📂 Use the **project selector dropdown** at the top of the application
+2. 🔍 Select **"${mentionedProject}"**
+3. 🚀 Run the **Risk Analysis** for that project
+4. 📧 Then ask me to send the report again
+
+Would you like me to send the risk report for **"${currentProjectName}"** to ${emailMatch} instead?`
+          };
+        }
+      }
+    }
+
     // Validate we have data to send
     if (!riskResults || riskResults.length === 0) {
       return { success: false, message: '⚠️ No risk analysis data available. Please run the AI Risk Analysis first before sending a report.' };
@@ -1562,77 +1996,227 @@ const AIChatWidget = ({ projectData, riskResults, selectedRisk, aiInsight, store
     const medium = riskResults.filter(r => r.severity === 'medium').length;
     const low = riskResults.filter(r => r.severity === 'low').length;
     const topRisks = riskResults.slice(0, 5);
+    const totalRisks = riskResults.length;
+    const avgScore = riskResults.reduce((sum, r) => sum + (r.riskScore || 0), 0) / totalRisks;
+    const totalEMV = riskResults.reduce((sum, r) => sum + (r.emv || 0), 0);
 
     const htmlMessage = `
-      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 700px; margin: 0 auto; background: #f8fafc; padding: 24px;">
-        <div style="background: linear-gradient(135deg, #dc2626 0%, #ea580c 100%); padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
-          <h1 style="color: white; margin: 0; font-size: 24px;">🚨 Risk Analysis Report</h1>
-          <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0; font-size: 14px;">Generated by PM Risk Monitor AI</p>
-        </div>
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      </head>
+      <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f1f5f9;">
+          <tr>
+            <td style="padding: 30px 20px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="650" style="margin: 0 auto; max-width: 650px;">
 
-        <div style="background: white; padding: 24px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-          <h2 style="color: #1f2937; margin: 0 0 16px 0; font-size: 18px;">📁 Project: ${projectData?.name || 'Unknown Project'}</h2>
-          <p style="color: #6b7280; margin: 0 0 24px 0; font-size: 14px;">Generated: ${new Date().toLocaleString()}</p>
-
-          <h3 style="color: #1f2937; margin: 0 0 12px 0; font-size: 16px;">📊 Risk Summary</h3>
-          <div style="display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 80px; background: #fef2f2; padding: 12px; border-radius: 8px; text-align: center; border-left: 4px solid #dc2626;">
-              <div style="font-size: 24px; font-weight: 700; color: #dc2626;">${critical}</div>
-              <div style="font-size: 11px; color: #991b1b;">Critical</div>
-            </div>
-            <div style="flex: 1; min-width: 80px; background: #fff7ed; padding: 12px; border-radius: 8px; text-align: center; border-left: 4px solid #ea580c;">
-              <div style="font-size: 24px; font-weight: 700; color: #ea580c;">${high}</div>
-              <div style="font-size: 11px; color: #c2410c;">High</div>
-            </div>
-            <div style="flex: 1; min-width: 80px; background: #fefce8; padding: 12px; border-radius: 8px; text-align: center; border-left: 4px solid #ca8a04;">
-              <div style="font-size: 24px; font-weight: 700; color: #ca8a04;">${medium}</div>
-              <div style="font-size: 11px; color: #a16207;">Medium</div>
-            </div>
-            <div style="flex: 1; min-width: 80px; background: #f0fdf4; padding: 12px; border-radius: 8px; text-align: center; border-left: 4px solid #16a34a;">
-              <div style="font-size: 24px; font-weight: 700; color: #16a34a;">${low}</div>
-              <div style="font-size: 11px; color: #15803d;">Low</div>
-            </div>
-          </div>
-
-          <h3 style="color: #1f2937; margin: 0 0 12px 0; font-size: 16px;">🔥 Top ${topRisks.length} Risks</h3>
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
-            <thead>
-              <tr style="background: #f1f5f9;">
-                <th style="padding: 10px; text-align: left; font-size: 12px; color: #475569; border-bottom: 2px solid #e2e8f0;">Activity</th>
-                <th style="padding: 10px; text-align: center; font-size: 12px; color: #475569; border-bottom: 2px solid #e2e8f0;">Score</th>
-                <th style="padding: 10px; text-align: center; font-size: 12px; color: #475569; border-bottom: 2px solid #e2e8f0;">Severity</th>
-                <th style="padding: 10px; text-align: center; font-size: 12px; color: #475569; border-bottom: 2px solid #e2e8f0;">Delay</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${topRisks.map(risk => `
+                <!-- Header -->
                 <tr>
-                  <td style="padding: 10px; font-size: 13px; color: #1f2937; border-bottom: 1px solid #e2e8f0;">${risk.activity.name}</td>
-                  <td style="padding: 10px; text-align: center; font-size: 13px; font-weight: 600; color: ${risk.severity === 'critical' ? '#dc2626' : risk.severity === 'high' ? '#ea580c' : '#ca8a04'}; border-bottom: 1px solid #e2e8f0;">${risk.riskScore?.toFixed(0)}</td>
-                  <td style="padding: 10px; text-align: center; border-bottom: 1px solid #e2e8f0;">
-                    <span style="padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; background: ${risk.severity === 'critical' ? '#fef2f2' : risk.severity === 'high' ? '#fff7ed' : risk.severity === 'medium' ? '#fefce8' : '#f0fdf4'}; color: ${risk.severity === 'critical' ? '#dc2626' : risk.severity === 'high' ? '#ea580c' : risk.severity === 'medium' ? '#ca8a04' : '#16a34a'};">${risk.severity?.toUpperCase()}</span>
+                  <td style="background-color: #7c3aed; padding: 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                      <tr>
+                        <td style="text-align: center;">
+                          <div style="width: 70px; height: 70px; margin: 0 auto 16px; background-color: #ffffff; border-radius: 50%; line-height: 70px; font-size: 32px;">📊</div>
+                          <h1 style="color: #ffffff !important; margin: 0 0 8px 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">Risk Analysis Report</h1>
+                          <p style="color: #e9d5ff; margin: 0; font-size: 15px; font-weight: 400;">AI-Powered Project Risk Assessment</p>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
-                  <td style="padding: 10px; text-align: center; font-size: 13px; color: #1f2937; border-bottom: 1px solid #e2e8f0;">${risk.activity.daysDelayed || 0} days</td>
                 </tr>
-              `).join('')}
-            </tbody>
-          </table>
 
-          ${aiInsight ? `
-            <h3 style="color: #1f2937; margin: 0 0 12px 0; font-size: 16px;">🤖 AI Insight</h3>
-            <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); padding: 16px; border-radius: 8px; border-left: 4px solid #10b981; margin-bottom: 24px;">
-              <p style="margin: 0; font-size: 13px; color: #065f46; line-height: 1.6;">${aiInsight.substring(0, 500)}${aiInsight.length > 500 ? '...' : ''}</p>
-            </div>
-          ` : ''}
+                <!-- Project Info Bar -->
+                <tr>
+                  <td style="background: #1e293b; padding: 20px 30px;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                      <tr>
+                        <td style="color: white;">
+                          <p style="margin: 0 0 4px 0; font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Project</p>
+                          <p style="margin: 0; font-size: 18px; font-weight: 600; color: white;">${projectData?.name || 'Unknown Project'}</p>
+                        </td>
+                        <td style="text-align: right; color: white;">
+                          <p style="margin: 0 0 4px 0; font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Generated</p>
+                          <p style="margin: 0; font-size: 14px; color: #e2e8f0;">${new Date().toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
 
-          <div style="background: #f8fafc; padding: 16px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0;">
-            <p style="margin: 0; font-size: 12px; color: #64748b;">
-              📧 Sent via <strong>PM Risk Monitor AI Assistant</strong><br>
-              <span style="font-size: 11px;">i2e Consulting AI Lab Hackathon 2025</span>
-            </p>
-          </div>
-        </div>
-      </div>
+                <!-- Main Content -->
+                <tr>
+                  <td style="background: white; padding: 0;">
+
+                    <!-- Risk Summary Cards -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="padding: 30px;">
+                      <tr>
+                        <td colspan="4" style="padding-bottom: 20px;">
+                          <h2 style="margin: 0; font-size: 18px; font-weight: 600; color: #1e293b;">📈 Risk Distribution</h2>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td width="25%" style="padding: 8px;">
+                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border-radius: 12px; border: 1px solid #fecaca;">
+                            <tr>
+                              <td style="padding: 20px; text-align: center;">
+                                <div style="font-size: 36px; font-weight: 800; color: #dc2626; line-height: 1;">${critical}</div>
+                                <div style="font-size: 11px; font-weight: 600; color: #b91c1c; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px;">Critical</div>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                        <td width="25%" style="padding: 8px;">
+                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%); border-radius: 12px; border: 1px solid #fed7aa;">
+                            <tr>
+                              <td style="padding: 20px; text-align: center;">
+                                <div style="font-size: 36px; font-weight: 800; color: #ea580c; line-height: 1;">${high}</div>
+                                <div style="font-size: 11px; font-weight: 600; color: #c2410c; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px;">High</div>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                        <td width="25%" style="padding: 8px;">
+                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%); border-radius: 12px; border: 1px solid #fde047;">
+                            <tr>
+                              <td style="padding: 20px; text-align: center;">
+                                <div style="font-size: 36px; font-weight: 800; color: #ca8a04; line-height: 1;">${medium}</div>
+                                <div style="font-size: 11px; font-weight: 600; color: #a16207; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px;">Medium</div>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                        <td width="25%" style="padding: 8px;">
+                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; border: 1px solid #86efac;">
+                            <tr>
+                              <td style="padding: 20px; text-align: center;">
+                                <div style="font-size: 36px; font-weight: 800; color: #16a34a; line-height: 1;">${low}</div>
+                                <div style="font-size: 11px; font-weight: 600; color: #15803d; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px;">Low</div>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Quick Stats -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: #f8fafc; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                      <tr>
+                        <td width="33%" style="padding: 20px 30px; text-align: center; border-right: 1px solid #e2e8f0;">
+                          <div style="font-size: 24px; font-weight: 700; color: #1e293b;">${totalRisks}</div>
+                          <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Total Activities</div>
+                        </td>
+                        <td width="34%" style="padding: 20px 30px; text-align: center; border-right: 1px solid #e2e8f0;">
+                          <div style="font-size: 24px; font-weight: 700; color: #7c3aed;">${avgScore.toFixed(1)}</div>
+                          <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Avg Risk Score</div>
+                        </td>
+                        <td width="33%" style="padding: 20px 30px; text-align: center;">
+                          <div style="font-size: 24px; font-weight: 700; color: #dc2626;">$${(totalEMV / 1000).toFixed(0)}K</div>
+                          <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Total EMV</div>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Top Risks Table -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="padding: 30px;">
+                      <tr>
+                        <td>
+                          <h2 style="margin: 0 0 20px 0; font-size: 18px; font-weight: 600; color: #1e293b;">🔥 Top ${topRisks.length} High-Priority Risks</h2>
+                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+                            <thead>
+                              <tr style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
+                                <th style="padding: 14px 16px; text-align: left; font-size: 12px; font-weight: 600; color: white; text-transform: uppercase; letter-spacing: 0.5px;">Activity</th>
+                                <th style="padding: 14px 16px; text-align: center; font-size: 12px; font-weight: 600; color: white; text-transform: uppercase; letter-spacing: 0.5px;" width="80">Score</th>
+                                <th style="padding: 14px 16px; text-align: center; font-size: 12px; font-weight: 600; color: white; text-transform: uppercase; letter-spacing: 0.5px;" width="100">Severity</th>
+                                <th style="padding: 14px 16px; text-align: center; font-size: 12px; font-weight: 600; color: white; text-transform: uppercase; letter-spacing: 0.5px;" width="100">Impact</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              ${topRisks.map((risk, index) => `
+                                <tr style="background: ${index % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+                                  <td style="padding: 14px 16px; font-size: 14px; color: #1e293b; font-weight: 500; border-bottom: 1px solid #e2e8f0;">
+                                    <span style="color: #94a3b8; font-size: 12px; margin-right: 8px;">#${index + 1}</span>
+                                    ${risk.activity.name}
+                                  </td>
+                                  <td style="padding: 14px 16px; text-align: center; border-bottom: 1px solid #e2e8f0;">
+                                    <span style="display: inline-block; min-width: 40px; padding: 6px 12px; border-radius: 20px; font-size: 14px; font-weight: 700; background: ${risk.severity === 'critical' ? '#dc2626' : risk.severity === 'high' ? '#ea580c' : risk.severity === 'medium' ? '#ca8a04' : '#16a34a'}; color: white;">${risk.riskScore?.toFixed(0)}</span>
+                                  </td>
+                                  <td style="padding: 14px 16px; text-align: center; border-bottom: 1px solid #e2e8f0;">
+                                    <span style="display: inline-block; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; background: ${risk.severity === 'critical' ? '#fef2f2' : risk.severity === 'high' ? '#fff7ed' : risk.severity === 'medium' ? '#fefce8' : '#f0fdf4'}; color: ${risk.severity === 'critical' ? '#dc2626' : risk.severity === 'high' ? '#ea580c' : risk.severity === 'medium' ? '#ca8a04' : '#16a34a'}; border: 1px solid ${risk.severity === 'critical' ? '#fecaca' : risk.severity === 'high' ? '#fed7aa' : risk.severity === 'medium' ? '#fde047' : '#86efac'};">${risk.severity}</span>
+                                  </td>
+                                  <td style="padding: 14px 16px; text-align: center; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0;">
+                                    ${risk.activity.daysDelayed ? `<span style="color: #dc2626; font-weight: 600;">+${risk.activity.daysDelayed} days</span>` : '<span style="color: #16a34a;">On track</span>'}
+                                  </td>
+                                </tr>
+                              `).join('')}
+                            </tbody>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+
+                    ${aiInsight ? `
+                    <!-- AI Insight Section -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="padding: 0 30px 30px 30px;">
+                      <tr>
+                        <td>
+                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border-radius: 12px; border: 1px solid #86efac;">
+                            <tr>
+                              <td style="padding: 20px;">
+                                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                  <tr>
+                                    <td width="40" style="vertical-align: top;">
+                                      <div style="width: 36px; height: 36px; background: #10b981; border-radius: 10px; text-align: center; line-height: 36px; font-size: 18px;">🤖</div>
+                                    </td>
+                                    <td style="padding-left: 12px;">
+                                      <h3 style="margin: 0 0 10px 0; font-size: 15px; font-weight: 600; color: #065f46;">AI-Generated Insight</h3>
+                                      <p style="margin: 0; font-size: 14px; color: #047857; line-height: 1.6;">${aiInsight.substring(0, 500)}${aiInsight.length > 500 ? '...' : ''}</p>
+                                    </td>
+                                  </tr>
+                                </table>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                    ` : ''}
+
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 30px; border-radius: 0 0 16px 16px; text-align: center;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                      <tr>
+                        <td style="text-align: center;">
+                          <p style="margin: 0 0 8px 0; font-size: 14px; color: white; font-weight: 600;">PM Risk Monitor</p>
+                          <p style="margin: 0 0 16px 0; font-size: 12px; color: #94a3b8;">AI-Powered Project Risk Analysis</p>
+                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto;">
+                            <tr>
+                              <td style="padding: 0 8px;">
+                                <span style="display: inline-block; padding: 4px 10px; background: rgba(255,255,255,0.1); border-radius: 4px; font-size: 10px; color: #94a3b8;">i2e Consulting</span>
+                              </td>
+                              <td style="padding: 0 8px;">
+                                <span style="display: inline-block; padding: 4px 10px; background: rgba(255,255,255,0.1); border-radius: 4px; font-size: 10px; color: #94a3b8;">AI Lab Hackathon 2025</span>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
     `;
 
     try {
@@ -1761,17 +2345,37 @@ const AIChatWidget = ({ projectData, riskResults, selectedRisk, aiInsight, store
 
       // Regular chat - proceed with ChatGPT
       const appContext = buildAppContext();
+      const currentProjectName = projectData?.name || 'Unknown Project';
 
       const systemPrompt = `You are an expert AI Project Management Assistant for the "PM Risk Monitor" application. You help project managers understand their project data, analyze risks, and make informed decisions.
 
-You have access to the following application data:
+🎯 **CURRENTLY SELECTED PROJECT: "${currentProjectName}"**
+
+⚠️ CRITICAL INSTRUCTION - PROJECT NAME VALIDATION:
+Before answering ANY question, you MUST check if the user's query mentions a DIFFERENT project name than "${currentProjectName}".
+- If the user mentions a project name that is NOT "${currentProjectName}", you MUST respond with:
+  "⚠️ You've asked about **[mentioned project name]**, but the currently selected project is **${currentProjectName}**.
+
+  I can only provide data for the currently selected project. To get information about a different project, please:
+  1. Use the project selector dropdown at the top of the application
+  2. Select the project you want to analyze
+  3. Run the Risk Analysis for that project
+  4. Then ask your question again
+
+  Would you like me to help you with **${currentProjectName}** instead?"
+
+- ONLY proceed to answer if the query is about "${currentProjectName}" or doesn't mention any specific project name.
+
+You have access to the following application data (ONLY for "${currentProjectName}"):
 ${appContext}
 
 IMPORTANT CAPABILITIES:
 - You CAN send emails! If user asks to send an email/report, extract the email address and confirm you'll send it.
 - Example: "send risk report to john@example.com" - you will actually send the email
+- But you can ONLY send reports for the currently selected project: "${currentProjectName}"
 
 Guidelines:
+- ALWAYS verify the project name in the user's query matches "${currentProjectName}" before responding
 - Be concise but thorough in your responses
 - Reference specific data from the context when answering
 - If asked about something not in the context, politely explain what data is available
@@ -1824,13 +2428,6 @@ Guidelines:
     setMessages([
       { role: 'assistant', content: 'Chat cleared! 🗑️ How can I help you with your project?' }
     ]);
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
   };
 
   // Simple markdown to HTML converter for chat
@@ -2020,14 +2617,85 @@ Guidelines:
             borderTop: '1px solid #e2e8f0',
             background: 'white'
           }}>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
+            {/* Prompt Suggestions Dropdown */}
+            <div style={{ marginBottom: '10px' }}>
+              <select
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setInput(e.target.value);
+                    e.target.value = ''; // Reset dropdown
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  border: '2px solid #e2e8f0',
+                  fontSize: '0.85rem',
+                  color: '#64748b',
+                  background: '#f8fafc',
+                  cursor: 'pointer',
+                  outline: 'none'
+                }}
+              >
+                <option value="">💡 Quick prompts - Select to populate...</option>
+                <optgroup label="📊 Risk Analysis">
+                  <option value="What are the top 3 highest risk activities and why?">What are the top 3 highest risk activities and why?</option>
+                  <option value="Summarize the overall project risk status">Summarize the overall project risk status</option>
+                  <option value="Which activities are on the critical path and delayed?">Which activities are on the critical path and delayed?</option>
+                  <option value="What is the risk distribution across all activities?">What is the risk distribution across all activities?</option>
+                </optgroup>
+                <optgroup label="📅 Schedule & Timeline">
+                  <option value="Which activities are behind schedule and by how many days?">Which activities are behind schedule and by how many days?</option>
+                  <option value="What is the projected project completion date based on current delays?">What is the projected project completion date based on current delays?</option>
+                  <option value="List all activities with zero float remaining">List all activities with zero float remaining</option>
+                </optgroup>
+                <optgroup label="👥 Resources">
+                  <option value="Which resources are over-allocated?">Which resources are over-allocated?</option>
+                  <option value="Show me the resource utilization summary">Show me the resource utilization summary</option>
+                  <option value="Which activities need additional resources?">Which activities need additional resources?</option>
+                </optgroup>
+                <optgroup label="💡 Recommendations">
+                  <option value="What actions should I take to reduce project risk?">What actions should I take to reduce project risk?</option>
+                  <option value="Suggest mitigation strategies for the critical risks">Suggest mitigation strategies for the critical risks</option>
+                  <option value="What is the estimated cost impact of current delays?">What is the estimated cost impact of current delays?</option>
+                </optgroup>
+                <optgroup label="📧 Email Reports">
+                  <option value="Send risk report to ">Send risk report to [enter email]</option>
+                  <option value="Email a summary of critical risks to ">Email critical risks summary to [enter email]</option>
+                  <option value="Send project status update to ">Send project status update to [enter email]</option>
+                  <option value="Email weekly risk analysis report to ">Email weekly risk analysis to [enter email]</option>
+                  <option value="Send executive summary of delayed activities to ">Send delayed activities summary to [enter email]</option>
+                </optgroup>
+                {/* Dynamic prompts based on current data */}
+                {selectedRisk && (
+                  <optgroup label={`🎯 Current Risk: ${selectedRisk.activity?.name?.substring(0, 25)}...`}>
+                    <option value={`Explain the risk factors for ${selectedRisk.activity?.name}`}>Explain risk factors for this activity</option>
+                    <option value={`What are the dependencies affected by ${selectedRisk.activity?.name}?`}>What dependencies are affected?</option>
+                    <option value={`How can I reduce the risk score for ${selectedRisk.activity?.name}?`}>How can I reduce this risk score?</option>
+                  </optgroup>
+                )}
+                {riskResults?.length > 0 && (
+                  <optgroup label="📈 Dynamic Analysis">
+                    <option value={`We have ${riskResults.filter(r => r.severity === 'critical').length} critical and ${riskResults.filter(r => r.severity === 'high').length} high risks. What should be our priority?`}>Analyze current critical & high risks priority</option>
+                    <option value={`Compare the risk levels of activities on critical path vs non-critical path`}>Compare critical path vs non-critical path risks</option>
+                  </optgroup>
+                )}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+              <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Ask about your project..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="Ask about your project... (Shift+Enter for new line)"
                 disabled={isLoading}
+                rows={2}
                 style={{
                   flex: 1,
                   padding: '12px 16px',
@@ -2035,7 +2703,10 @@ Guidelines:
                   border: '2px solid #e2e8f0',
                   fontSize: '0.9rem',
                   outline: 'none',
-                  transition: 'border-color 0.2s'
+                  transition: 'border-color 0.2s',
+                  resize: 'none',
+                  fontFamily: 'inherit',
+                  lineHeight: '1.4'
                 }}
               />
               <button
@@ -2064,8 +2735,10 @@ Guidelines:
   );
 };
 
+
+
 // ===================================
-// DEFAULT PROJECT DATA
+// DEFAULT PROJECT DATA (with full 27-field support)
 // ===================================
 const DEFAULT_PROJECT = {
   name: 'Hospital-Wide EMR Implementation',
@@ -2086,7 +2759,8 @@ const DEFAULT_PROJECT = {
       completionPercent: 45,
       isCriticalPath: true,
       float: 0,
-      type: 'Security & Compliance'
+      type: 'Security & Compliance',
+      ES: 0, EF: 15, LS: 0, LF: 15, Predecessor_ID: 'A-038;A-041', Successor_ID: 'A-047;A-089', Dependency_Type: 'FS', Resource_Max_FTE: 1.5, Skill_Tags: 'HIPAA;Security;Compliance', Probability: 0.7, Delay_Impact_days: 12, Cost_Impact_of_Risk: 75000
     },
     {
       id: 'A-047',
@@ -2101,7 +2775,8 @@ const DEFAULT_PROJECT = {
       completionPercent: 0,
       isCriticalPath: true,
       float: 0,
-      type: 'Data Migration'
+      type: 'Data Migration',
+      ES: 15, EF: 35, LS: 15, LF: 35, Predecessor_ID: 'A-042', Successor_ID: 'A-053', Dependency_Type: 'FS', Resource_Max_FTE: 1.4, Skill_Tags: 'Migration;Database;PatientData', Probability: 0.5, Delay_Impact_days: 8, Cost_Impact_of_Risk: 50000
     },
     {
       id: 'A-053',
@@ -2116,7 +2791,8 @@ const DEFAULT_PROJECT = {
       completionPercent: 0,
       isCriticalPath: true,
       float: 2,
-      type: 'Integration Testing'
+      type: 'Integration Testing',
+      ES: 35, EF: 47, LS: 37, LF: 49, Predecessor_ID: 'A-047;A-051', Successor_ID: 'A-102', Dependency_Type: 'FS', Resource_Max_FTE: 1.1, Skill_Tags: 'Testing;Integration;Clinical', Probability: 0.4, Delay_Impact_days: 5, Cost_Impact_of_Risk: 30000
     },
     {
       id: 'A-089',
@@ -2131,7 +2807,8 @@ const DEFAULT_PROJECT = {
       completionPercent: 0,
       isCriticalPath: false,
       float: 8,
-      type: 'Integration'
+      type: 'Integration',
+      ES: 15, EF: 25, LS: 23, LF: 33, Predecessor_ID: 'A-042', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 0.8, Skill_Tags: 'Pharmacy;HL7;Integration', Probability: 0.3, Delay_Impact_days: 3, Cost_Impact_of_Risk: 15000
     },
     {
       id: 'A-102',
@@ -2146,7 +2823,8 @@ const DEFAULT_PROJECT = {
       completionPercent: 0,
       isCriticalPath: false,
       float: 5,
-      type: 'Training'
+      type: 'Training',
+      ES: 47, EF: 55, LS: 52, LF: 60, Predecessor_ID: 'A-053', Successor_ID: 'A-115', Dependency_Type: 'FS', Resource_Max_FTE: 0.9, Skill_Tags: 'Training;Clinical;Education', Probability: 0.2, Delay_Impact_days: 2, Cost_Impact_of_Risk: 10000
     },
     {
       id: 'A-115',
@@ -2161,7 +2839,8 @@ const DEFAULT_PROJECT = {
       completionPercent: 0,
       isCriticalPath: true,
       float: 0,
-      type: 'Deployment'
+      type: 'Deployment',
+      ES: 55, EF: 62, LS: 55, LF: 62, Predecessor_ID: 'A-102;A-112', Successor_ID: '', Dependency_Type: 'FS', Resource_Max_FTE: 1.0, Skill_Tags: 'GoLive;Deployment;Support', Probability: 0.5, Delay_Impact_days: 7, Cost_Impact_of_Risk: 100000
     }
   ]
 };
@@ -2468,16 +3147,18 @@ function App() {
 
   // Actually load all sample projects (called after confirmation)
   const confirmLoadSampleData = useCallback(() => {
-    // Create all sample projects
+    // Create all sample projects with normalized activities
     const newProjects = SAMPLE_PROJECTS.map((sampleProj, index) => {
-      const uniqueResources = new Set(sampleProj.activities.map(a => a.resource).filter(r => r)).size;
-      const duration = calculateProjectDuration(sampleProj.activities);
+      // Normalize all activities to the complete field structure
+      const normalizedActivities = sampleProj.activities.map(act => normalizeActivity(act));
+      const uniqueResources = new Set(normalizedActivities.map(a => a.Resource_ID || a.resource).filter(r => r)).size;
+      const duration = calculateProjectDuration(normalizedActivities);
 
       return {
         id: `proj_sample_${Date.now()}_${index}`,
         name: sampleProj.name,
         category: sampleProj.category,
-        activities: sampleProj.activities,
+        activities: normalizedActivities,
         duration: duration,
         budget: sampleProj.budget,
         teamSize: uniqueResources,
@@ -2586,8 +3267,9 @@ function App() {
       isConcurrent: activity.dependencies.length > 2 ? 1.15 : 1.0
     };
 
-    // Factor 1: Schedule Delay
-    const scheduleDelayScore = Math.min(100, (activity.daysDelayed / activity.duration) * 200);
+    // Factor 1: Schedule Delay (enhanced with Delay_Impact_days if available)
+    const delayImpact = activity.Delay_Impact_days || activity.daysDelayed || 0;
+    const scheduleDelayScore = Math.min(100, (Math.max(activity.daysDelayed, delayImpact) / activity.duration) * 200);
 
     // Factor 2: Critical Path
     const criticalPathScore = activity.isCriticalPath ? 100 : (activity.float < 3 ? 70 : 30);
@@ -2595,18 +3277,20 @@ function App() {
     // Factor 3: Float Consumption
     const floatScore = activity.float <= 0 ? 100 : Math.max(0, 100 - (activity.float * 10));
 
-    // Factor 4: Resource Overallocation
-    const resourceScore = activity.allocation > 100 
-      ? Math.min(100, ((activity.allocation - 100) / 50) * 100)
-      : 0;
+    // Factor 4: Resource Overallocation (enhanced with Resource_Max_FTE if available)
+    const maxFTE = activity.Resource_Max_FTE || 1.0;
+    const allocationRatio = (activity.allocation || 100) / 100;
+    const resourceScore = allocationRatio > maxFTE
+      ? Math.min(100, ((allocationRatio - maxFTE) / 0.5) * 100)
+      : (activity.allocation > 100 ? Math.min(100, ((activity.allocation - 100) / 50) * 100) : 0);
 
     // Factor 5: Progress Deviation
-    const expectedProgress = activity.status === 'completed' ? 100 : 
+    const expectedProgress = activity.status === 'completed' ? 100 :
       activity.status === 'in-progress' ? 50 : 0;
     const progressScore = Math.abs(expectedProgress - activity.completionPercent) * 2;
 
     // Calculate weighted score
-    let baseScore = 
+    let baseScore =
       (scheduleDelayScore * weights.scheduleDelay) +
       (criticalPathScore * weights.criticalPath) +
       (floatScore * weights.floatConsumption) +
@@ -2615,7 +3299,16 @@ function App() {
 
     // Apply multipliers
     const totalMultiplier = multipliers.isHIPAA * multipliers.isPatientFacing * multipliers.isConcurrent;
-    const finalScore = Math.min(100, baseScore * totalMultiplier);
+
+    // Apply Probability multiplier if available (0-1 scale, boosts high probability risks)
+    const probabilityMultiplier = activity.Probability ? (0.7 + (activity.Probability * 0.6)) : 1.0;
+
+    const finalScore = Math.min(100, baseScore * totalMultiplier * probabilityMultiplier);
+
+    // Calculate expected monetary value (EMV) for cost impact
+    const costImpact = activity.Cost_Impact_of_Risk || 0;
+    const probability = activity.Probability || 0.5;
+    const emv = costImpact * probability;
 
     return {
       score: finalScore,
@@ -2625,6 +3318,15 @@ function App() {
         'Float Consumption': floatScore,
         'Resource Overallocation': resourceScore,
         'Progress Deviation': progressScore
+      },
+      // Extended risk metrics from new fields
+      extendedMetrics: {
+        probability: activity.Probability || null,
+        delayImpactDays: activity.Delay_Impact_days || null,
+        costImpact: activity.Cost_Impact_of_Risk || null,
+        expectedMonetaryValue: emv || null,
+        skillTags: activity.Skill_Tags || null,
+        dependencyType: activity.Dependency_Type || 'FS'
       }
     };
   }, []);
@@ -2649,19 +3351,35 @@ function App() {
     const activitiesWithCP = calculateCriticalPath([...projectData.activities]);
 
     try {
-      // Prepare activities summary for ChatGPT
+      // Prepare activities summary for ChatGPT (with all 27 fields)
       const activitiesSummary = activitiesWithCP.map(a => ({
         id: a.id,
         name: a.name,
-        plannedDuration: a.plannedDuration,
+        plannedDuration: a.plannedDuration || a.duration,
         actualDuration: a.actualDuration,
         daysDelayed: a.daysDelayed,
-        percentComplete: a.percentComplete,
+        percentComplete: a.percentComplete || a.completionPercent,
         resource: a.resource,
         allocation: a.allocation,
         isCriticalPath: a.isCriticalPath,
         float: a.float,
-        dependencies: a.dependencies.length
+        dependencies: a.dependencies.length,
+        // Extended CPM fields
+        ES: a.ES || 0,
+        EF: a.EF || 0,
+        LS: a.LS || 0,
+        LF: a.LF || 0,
+        // Extended dependency fields
+        Predecessor_ID: a.Predecessor_ID || '',
+        Successor_ID: a.Successor_ID || '',
+        Dependency_Type: a.Dependency_Type || 'FS',
+        // Extended resource fields
+        Resource_Max_FTE: a.Resource_Max_FTE || 1.0,
+        Skill_Tags: a.Skill_Tags || '',
+        // Extended risk fields
+        Probability: a.Probability || 0.5,
+        Delay_Impact_days: a.Delay_Impact_days || 0,
+        Cost_Impact_of_Risk: a.Cost_Impact_of_Risk || 0
       }));
 
       // Call ChatGPT API for risk analysis
@@ -2682,12 +3400,18 @@ You MUST respond with a valid JSON array. Each object must have:
 - riskScore: number between 0-100
 - factors: object with these keys (each 0-100): scheduleDelay, criticalPathImpact, floatConsumption, resourceOverallocation, progressDeviation
 
-Higher scores = higher risk. Consider:
-- Days delayed vs planned duration
-- Critical path status (critical path items are higher risk)
-- Resource allocation (>100% = overallocated = higher risk)
-- Float available (0 float = higher risk)
-- Progress percentage vs expected
+Higher scores = higher risk. Consider these factors with their weights:
+- Schedule Delay (30%): Days delayed vs planned duration, also consider Delay_Impact_days
+- Critical Path Impact (25%): Critical path status (critical path items are higher risk)
+- Float Consumption (20%): Float available (0 float = higher risk)
+- Resource Overallocation (15%): Allocation vs Resource_Max_FTE (>100% or >Max FTE = higher risk)
+- Progress Deviation (10%): Progress percentage vs expected
+
+Also factor in:
+- Probability: Higher probability = higher risk multiplier
+- Cost_Impact_of_Risk: Higher cost impact = higher severity
+- Skill_Tags: Complex skill requirements may increase risk
+- Dependency_Type: Non-FS dependencies may add complexity
 
 Respond ONLY with the JSON array, no other text.`
           }, {
@@ -2840,6 +3564,12 @@ Return a JSON array with risk scores for each activity.`
   const generateAIInsight = useCallback(async () => {
     if (!selectedRisk) return;
 
+    // Check if Risk Analysis has been run
+    if (!analysisComplete) {
+      setAiInsight('⚠️ Run Risk Analysis to get AI support for this selected project.\n\nPlease run the Risk Analysis first to enable AI-powered insights and recommendations.');
+      return;
+    }
+
     setIsGeneratingInsight(true);
     setAiInsight(null);
 
@@ -2867,23 +3597,43 @@ Return a JSON array with risk scores for each activity.`
             role: 'user',
             content: `Analyze this critical project risk and provide an executive summary.
 
-Activity: ${selectedRisk.activity.name}
+Activity: ${selectedRisk.activity.name} (${selectedRisk.activity.id})
 Risk Score: ${selectedRisk.riskScore.toFixed(0)}/100
 Severity: ${selectedRisk.severity.toUpperCase()}
-Days Delayed: ${selectedRisk.activity.daysDelayed}
-Resource: ${selectedRisk.activity.resource}
-Resource Allocation: ${selectedRisk.activity.allocation}%
-Critical Path: ${selectedRisk.activity.isCriticalPath ? 'Yes' : 'No'}
-Float Available: ${selectedRisk.activity.float} days
-Dependencies: ${selectedRisk.activity.dependencies.length} downstream tasks
-Progress: ${selectedRisk.activity.percentComplete}% complete
+
+SCHEDULE DATA:
+- Days Delayed: ${selectedRisk.activity.daysDelayed}
+- Delay Impact: ${selectedRisk.activity.Delay_Impact_days || 0} days potential
+- Duration: ${selectedRisk.activity.duration} days
+- ES/EF: ${selectedRisk.activity.ES || 0}/${selectedRisk.activity.EF || 0}
+- LS/LF: ${selectedRisk.activity.LS || 0}/${selectedRisk.activity.LF || 0}
+- Float Available: ${selectedRisk.activity.float} days
+- Critical Path: ${selectedRisk.activity.isCriticalPath ? 'Yes' : 'No'}
+
+RESOURCE DATA:
+- Resource: ${selectedRisk.activity.resource}
+- Allocation: ${selectedRisk.activity.allocation}%
+- Max FTE: ${selectedRisk.activity.Resource_Max_FTE || 1.0}
+- Skills Required: ${selectedRisk.activity.Skill_Tags || 'Not specified'}
+
+DEPENDENCY DATA:
+- Predecessors: ${selectedRisk.activity.Predecessor_ID || 'None'}
+- Successors: ${selectedRisk.activity.Successor_ID || 'None'}
+- Dependency Type: ${selectedRisk.activity.Dependency_Type || 'FS'}
+- Downstream Tasks: ${selectedRisk.activity.dependencies.length}
+
+RISK METRICS:
+- Probability: ${((selectedRisk.activity.Probability || 0.5) * 100).toFixed(0)}%
+- Cost Impact: $${(selectedRisk.activity.Cost_Impact_of_Risk || 0).toLocaleString()}
+- Expected Monetary Value (EMV): $${((selectedRisk.activity.Probability || 0.5) * (selectedRisk.activity.Cost_Impact_of_Risk || 0)).toLocaleString()}
+- Progress: ${selectedRisk.activity.percentComplete || selectedRisk.activity.completionPercent || 0}% complete
 
 Risk Factors:
 ${Object.entries(selectedRisk.factors).map(([k, v]) => `- ${k}: ${v.toFixed(0)}%`).join('\n')}
 
 Provide a concise executive summary with:
 1. 🚨 SITUATION: What's happening (2-3 sentences)
-2. 💰 BUSINESS IMPACT: Financial and timeline impact (specific numbers)
+2. 💰 BUSINESS IMPACT: Financial and timeline impact (use the Cost Impact and EMV data)
 3. ⚡ RECOMMENDED ACTIONS: 2-3 specific actions with cost estimates and expected ROI
 4. ⏰ URGENCY LEVEL: How quickly action is needed
 
@@ -2983,7 +3733,7 @@ Note: Using fallback template. For real-time AI analysis, ensure OpenAI API key 
     }
 
     setIsGeneratingInsight(false);
-  }, [selectedRisk]);
+  }, [selectedRisk, analysisComplete]);
 
   // ===================================
   // APPROVE MITIGATION
@@ -3089,6 +3839,12 @@ Note: Using fallback template. For real-time AI analysis, ensure OpenAI API key 
   const generateMitigationStrategies = useCallback(async () => {
     if (!selectedRisk) return;
 
+    // Check if Risk Analysis has been run
+    if (!analysisComplete) {
+      setToast({ message: '⚠️ Run Risk Analysis first to get AI recovery plans', type: 'warning' });
+      return;
+    }
+
     setIsGeneratingStrategies(true);
     setMitigationStrategies(null);
     setSelectedStrategy(null);
@@ -3138,21 +3894,42 @@ Activity: ${activity.name}
 Activity ID: ${activity.id}
 Current Risk Score: ${selectedRisk.riskScore.toFixed(0)}/100
 Severity: ${selectedRisk.severity.toUpperCase()}
-Days Delayed: ${activity.daysDelayed}
-Planned Duration: ${activity.plannedDuration} days
-Resource: ${activity.resource}
-Resource Allocation: ${activity.allocation}%
-Critical Path: ${activity.isCriticalPath ? 'Yes - HIGH IMPACT' : 'No'}
-Float Available: ${activity.float} days
-Dependencies: ${activity.dependencies.length} downstream tasks affected
-Progress: ${activity.percentComplete}% complete
+
+SCHEDULE DATA:
+- Days Delayed: ${activity.daysDelayed}
+- Delay Impact Potential: ${activity.Delay_Impact_days || 0} days
+- Planned Duration: ${activity.plannedDuration || activity.duration} days
+- ES/EF: ${activity.ES || 0}/${activity.EF || 0}
+- LS/LF: ${activity.LS || 0}/${activity.LF || 0}
+- Float Available: ${activity.float} days
+- Critical Path: ${activity.isCriticalPath ? 'Yes - HIGH IMPACT' : 'No'}
+
+RESOURCE DATA:
+- Resource: ${activity.resource}
+- Allocation: ${activity.allocation}%
+- Max FTE: ${activity.Resource_Max_FTE || 1.0}
+- Skills Required: ${activity.Skill_Tags || 'Not specified'}
+
+DEPENDENCY DATA:
+- Predecessors: ${activity.Predecessor_ID || 'None'}
+- Successors: ${activity.Successor_ID || 'None'}
+- Dependency Type: ${activity.Dependency_Type || 'FS'}
+- Downstream Tasks: ${activity.dependencies.length} affected
+
+RISK METRICS:
+- Probability: ${((activity.Probability || 0.5) * 100).toFixed(0)}%
+- Cost Impact: $${(activity.Cost_Impact_of_Risk || 0).toLocaleString()}
+- Expected Monetary Value: $${((activity.Probability || 0.5) * (activity.Cost_Impact_of_Risk || 0)).toLocaleString()}
+- Progress: ${activity.percentComplete || activity.completionPercent || 0}% complete
 
 Risk Factors:
 - Schedule Delay Impact: ${selectedRisk.factors.scheduleDelay.toFixed(0)}%
 - Critical Path Impact: ${selectedRisk.factors.criticalPathImpact.toFixed(0)}%
 - Float Consumption: ${selectedRisk.factors.floatConsumption.toFixed(0)}%
 - Resource Overallocation: ${selectedRisk.factors.resourceOverallocation.toFixed(0)}%
-- Progress Deviation: ${selectedRisk.factors.progressDeviation.toFixed(0)}%`
+- Progress Deviation: ${selectedRisk.factors.progressDeviation.toFixed(0)}%
+
+Consider the Cost Impact when estimating strategy costs - ensure ROI is positive.`
           }],
           temperature: 0.7,
           max_tokens: 1500
@@ -3296,7 +4073,7 @@ Risk Factors:
     }
 
     setIsGeneratingStrategies(false);
-  }, [selectedRisk]);
+  }, [selectedRisk, analysisComplete]);
 
   // ===================================
   // SELECT AND APPLY STRATEGY
@@ -3420,19 +4197,53 @@ Risk Factors:
     }
 
     try {
-      // Simple CSV export (Excel will open it)
-      const headers = ['Rank', 'Activity ID', 'Activity Name', 'Risk Score', 'Severity', 'Days Delayed', 'Resource', 'Allocation', 'Critical Path'];
-      const rows = risks.map((risk, index) => [
-        index + 1,
-        risk.activity.id,
-        risk.activity.name,
-        risk.riskScore.toFixed(0),
-        risk.severity.toUpperCase(),
-        risk.activity.daysDelayed,
-        risk.activity.resource,
-        risk.activity.allocation + '%',
-        risk.activity.isCriticalPath ? 'Yes' : 'No'
-      ]);
+      // Complete field structure per requirements plus risk analysis data
+      const headers = ['Rank', 'Risk_Score', 'Severity', 'Activity_ID', 'Activity_Name', 'Work_Package', 'Planned_Start', 'Planned_Finish', 'Planned_Duration', 'Actual_Start', 'Actual_Finish', 'Remaining_Duration', 'Baseline_Start', 'Baseline_Finish', 'Baseline_Duration', 'Percent_Complete', 'Status', 'ES', 'EF', 'LS', 'LF', 'Total_Float_days', 'On_Critical_Path', 'Predecessor_ID', 'Successor_ID', 'Dependency_Type', 'Resource_ID', 'Role', 'FTE_Allocation', 'Resource_Max_FTE', 'Skill_Tags', 'Probability', 'Delay_Impact_days', 'Cost_Impact_of_Risk', 'EMV'];
+      const rows = risks.map((risk, index) => {
+        const act = risk.activity;
+        const probability = act.Probability || 0.5;
+        const costImpact = act.Cost_Impact_of_Risk || 0;
+        const emv = probability * costImpact;
+        const plannedDuration = act.Planned_Duration || act.duration || 0;
+        const percentComplete = act.Percent_Complete !== undefined ? act.Percent_Complete : (act.completionPercent || 0);
+        return [
+          index + 1,
+          risk.riskScore.toFixed(0),
+          risk.severity.toUpperCase(),
+          act.Activity_ID || act.id,
+          `"${act.Activity_Name || act.name}"`,
+          act.Work_Package || '',
+          act.Planned_Start || act.startDate || '',
+          act.Planned_Finish || '',
+          plannedDuration,
+          act.Actual_Start || '',
+          act.Actual_Finish || '',
+          act.Remaining_Duration !== undefined ? act.Remaining_Duration : Math.round(plannedDuration * (1 - percentComplete / 100)),
+          act.Baseline_Start || act.Planned_Start || act.startDate || '',
+          act.Baseline_Finish || act.Planned_Finish || '',
+          act.Baseline_Duration || plannedDuration,
+          percentComplete,
+          act.Status || act.status || '',
+          act.ES || 0,
+          act.EF || 0,
+          act.LS || 0,
+          act.LF || 0,
+          act.Total_Float_days !== undefined ? act.Total_Float_days : (act.float || 0),
+          (act.On_Critical_Path !== undefined ? act.On_Critical_Path : act.isCriticalPath) ? 'Yes' : 'No',
+          act.Predecessor_ID || '',
+          act.Successor_ID || '',
+          act.Dependency_Type || 'FS',
+          act.Resource_ID || act.resource || '',
+          act.Role || '',
+          act.FTE_Allocation !== undefined ? act.FTE_Allocation : (act.allocation || 100),
+          act.Resource_Max_FTE || 1.0,
+          `"${act.Skill_Tags || ''}"`,
+          probability,
+          act.Delay_Impact_days !== undefined ? act.Delay_Impact_days : (act.daysDelayed || 0),
+          costImpact,
+          emv.toFixed(2)
+        ];
+      });
 
       const csvContent = [
         headers.join(','),
@@ -3609,16 +4420,199 @@ Risk Factors:
           </div>
         </nav>
 
-        {/* Empty State Upload Section */}
-        <main className="main-content">
-          <div className="welcome-dashboard">
-            <div className="empty-state-container">
-              <div className="empty-state-icon">📂</div>
-              <h2 className="empty-state-title">No Project Data</h2>
-              <p className="empty-state-message">Upload a CSV file to get started with AI-powered risk analysis</p>
-              <CSVUploader onDataLoaded={handleCSVDataLoaded} onLoadSampleData={handleLoadSampleDataClick} />
+        {/* Empty State - Full Width Hero Layout */}
+        <main className="main-content" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 'calc(100vh - 70px)',
+          background: '#ffffff'
+        }}>
+          {/* Unified Connected Card Section */}
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            width: '100%',
+            paddingBottom: '0'
+          }}>
+            <div style={{
+              background: 'white',
+              borderRadius: '24px 24px 0 0',
+              boxShadow: '0 4px 24px rgba(0, 0, 0, 0.08)',
+              width: '100%',
+              maxWidth: '100%',
+              overflow: 'hidden'
+            }}>
+              {/* Hero Section */}
+              <div style={{
+                padding: '48px 48px 32px',
+                textAlign: 'center',
+                borderBottom: '1px solid #e2e8f0'
+              }}>
+                <h1 style={{
+                  fontSize: '32px',
+                  fontWeight: '800',
+                  color: '#0f172a',
+                  margin: '0 0 16px 0',
+                  letterSpacing: '-1px',
+                  lineHeight: '1.15'
+                }}>
+                  AI-Powered Project Risk Analysis
+                </h1>
+                <p style={{
+                  fontSize: '16px',
+                  color: '#64748b',
+                  margin: '0 auto 24px',
+                  lineHeight: '1.6',
+                
+                }}>
+                  Identify, assess, and mitigate project risks before they impact your timeline and budget. Powered by ChatGPT-4 for intelligent risk detection.
+                </p>
+                {/* Feature Pills */}
+                <div style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  justifyContent: 'center',
+                  gap: '12px'
+                }}>
+                    
+                </div>
+              </div>
+
+              {/* Upload Section */}
+              <div style={{
+                padding: '32px 48px',
+                textAlign: 'center',
+                background: '#f8fafc',
+                borderBottom: '1px solid #e2e8f0'
+              }}>
+                <div style={{
+                  width: '64px',
+                  height: '64px',
+                  margin: '0 auto 16px',
+                  background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                  borderRadius: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '28px'
+                }}>
+                  📂
+                </div>
+                <h2 style={{
+                  fontSize: '22px',
+                  fontWeight: '700',
+                  color: '#1e293b',
+                  margin: '0 0 8px 0'
+                }}>
+                  Get Started
+                </h2>
+                <p style={{
+                  fontSize: '14px',
+                  color: '#64748b',
+                  margin: '0 0 20px 0'
+                }}>
+                  Upload your project CSV file or load sample data to begin risk analysis
+                </p>
+                <CSVUploader onDataLoaded={handleCSVDataLoaded} onLoadSampleData={handleLoadSampleDataClick} />
+              </div>
+
+              {/* Feature Cards Grid */}
+              <div style={{
+                padding: '24px 48px 32px',
+                background: '#ffffff'
+              }}>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: '16px'
+                }}>
+                  <div style={{
+                    background: '#f8fafc',
+                    borderRadius: '12px',
+                    padding: '20px 16px',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '24px', marginBottom: '8px' }}>🤖</div>
+                    <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '4px' }}>AI Analysis</div>
+                    <div style={{ fontSize: '12px', color: '#94a3b8' }}>GPT-4 powered</div>
+                  </div>
+                  <div style={{
+                    background: '#f8fafc',
+                    borderRadius: '12px',
+                    padding: '20px 16px',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '24px', marginBottom: '8px' }}>⚠️</div>
+                    <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '4px' }}>Risk Scoring</div>
+                    <div style={{ fontSize: '12px', color: '#94a3b8' }}>Severity levels</div>
+                  </div>
+                  <div style={{
+                    background: '#f8fafc',
+                    borderRadius: '12px',
+                    padding: '20px 16px',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '24px', marginBottom: '8px' }}>🔗</div>
+                    <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '4px' }}>Critical Path</div>
+                    <div style={{ fontSize: '12px', color: '#94a3b8' }}>Auto detection</div>
+                  </div>
+                  <div style={{
+                    background: '#f8fafc',
+                    borderRadius: '12px',
+                    padding: '20px 16px',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '24px', marginBottom: '8px' }}>📧</div>
+                    <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '4px' }}>Alerts</div>
+                    <div style={{ fontSize: '12px', color: '#94a3b8' }}>Email reports</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+
+          {/* Full Width Footer */}
+          <footer style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '1rem 2rem',
+            background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+            borderTop: 'none',
+            marginTop: '0',
+            width: '100%'
+          }}>
+            {/* Left Side - Logo and Title */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+              <img
+                src={i2eLogo}
+                alt="i2e Consulting"
+                style={{
+                  height: '50px',
+                  width: 'auto',
+                  objectFit: 'contain',
+                  background: 'white',
+                  padding: '0.4rem 0.6rem',
+                  borderRadius: '8px'
+                }}
+              />
+              <div style={{ width: '1px', height: '30px', background: '#475569' }}></div>
+              <div style={{ textAlign: 'left' }}>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#e2e8f0', fontWeight: '600' }}>
+                  i2e Consulting AI Lab Hackathon 2025
+                </p>
+                <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8' }}>
+                  AI-Driven Schedule Risk Monitor
+                </p>
+              </div>
+            </div>
+            {/* Right Side - Copyright */}
+            <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b', textAlign: 'right', paddingRight: '5rem' }}>
+              &copy; 2025 | Hackathon Submission by <span style={{ color: '#3b82f6', fontWeight: '600' }}>Fayek Kamle</span>
+            </p>
+          </footer>
         </main>
       </div>
     );
@@ -4343,6 +5337,41 @@ Risk Factors:
               <p>Everything you need to get started with AI Risk Monitor</p>
             </div>
 
+            {/* User Guide */}
+            <div className="help-contact" style={{ marginBottom: '1.5rem' }}>
+              <h3>📖 Complete User Guide</h3>
+              <p style={{ marginBottom: '0.75rem' }}>Access the comprehensive user training guide with detailed explanations of all features.</p>
+              <a
+                href="USER_GUIDE.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.75rem 1.25rem',
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                  color: 'white',
+                  borderRadius: '10px',
+                  fontWeight: '600',
+                  fontSize: '0.9rem',
+                  textDecoration: 'none',
+                  boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.transform = 'translateY(-2px)';
+                  e.target.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.35)';
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.25)';
+                }}
+              >
+                📄 Open User Guide
+              </a>
+            </div>
+
             {/* Workflow Visual */}
             <div className="help-workflow">
               <div className="workflow-step">
@@ -4833,7 +5862,7 @@ Risk Factors:
                 {/* Severity Distribution Pie Chart */}
                 <div className="chart-card">
                   <h3 className="chart-title">📈 Severity Distribution</h3>
-                  <ResponsiveContainer width="100%" height={180}>
+                  <ResponsiveContainer width="100%" height={140}>
                     <PieChart>
                       <Pie
                         data={[
@@ -4844,12 +5873,10 @@ Risk Factors:
                         ]}
                         cx="50%"
                         cy="50%"
-                        innerRadius={40}
-                        outerRadius={70}
+                        innerRadius={35}
+                        outerRadius={55}
                         paddingAngle={3}
                         dataKey="value"
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        labelLine={false}
                       >
                         {[
                           { name: 'Critical', value: risks.filter(r => r.severity === 'critical').length, color: '#dc2626' },
@@ -4860,9 +5887,23 @@ Risk Factors:
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip />
+                      <Tooltip formatter={(value, name) => [`${value} risks`, name]} />
                     </PieChart>
                   </ResponsiveContainer>
+                  {/* Legend below chart */}
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap', marginTop: '4px' }}>
+                    {[
+                      { name: 'Critical', color: '#dc2626', count: risks.filter(r => r.severity === 'critical').length },
+                      { name: 'High', color: '#ea580c', count: risks.filter(r => r.severity === 'high').length },
+                      { name: 'Medium', color: '#ca8a04', count: risks.filter(r => r.severity === 'medium').length },
+                      { name: 'Low', color: '#16a34a', count: risks.filter(r => r.severity === 'low').length }
+                    ].map((item, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem' }}>
+                        <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: item.color }}></span>
+                        <span style={{ color: '#64748b' }}>{item.name}: <strong style={{ color: '#1e293b' }}>{item.count}</strong></span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Risk Score Bar Chart */}
@@ -4893,18 +5934,53 @@ Risk Factors:
                 <div className="chart-card">
                   <h3 className="chart-title">🎯 Risk Factors</h3>
                   <ResponsiveContainer width="100%" height={180}>
-                    <RadarChart data={[
-                      { factor: 'Delay', value: risks.reduce((sum, r) => sum + (r.factors?.scheduleDelay || 0), 0) / risks.length },
-                      { factor: 'Critical', value: risks.reduce((sum, r) => sum + (r.factors?.criticalPathImpact || 0), 0) / risks.length },
-                      { factor: 'Float', value: risks.reduce((sum, r) => sum + (r.factors?.floatConsumption || 0), 0) / risks.length },
-                      { factor: 'Resource', value: risks.reduce((sum, r) => sum + (r.factors?.resourceOverallocation || 0), 0) / risks.length },
-                      { factor: 'Progress', value: risks.reduce((sum, r) => sum + (r.factors?.progressDeviation || 0), 0) / risks.length }
-                    ]}>
+                    <RadarChart data={(() => {
+                      const risksWithFactors = risks.filter(r => r.factors);
+                      const factorCount = risksWithFactors.length || 1;
+                      return [
+                        {
+                          factor: 'Delay',
+                          value: risksWithFactors.reduce((sum, r) => sum + (r.factors?.scheduleDelay || 0), 0) / factorCount,
+                          fullMark: 100
+                        },
+                        {
+                          factor: 'Critical',
+                          value: risksWithFactors.reduce((sum, r) => sum + (r.factors?.criticalPathImpact || 0), 0) / factorCount,
+                          fullMark: 100
+                        },
+                        {
+                          factor: 'Float',
+                          value: risksWithFactors.reduce((sum, r) => sum + (r.factors?.floatConsumption || 0), 0) / factorCount,
+                          fullMark: 100
+                        },
+                        {
+                          factor: 'Resource',
+                          value: risksWithFactors.reduce((sum, r) => sum + (r.factors?.resourceOverallocation || 0), 0) / factorCount,
+                          fullMark: 100
+                        },
+                        {
+                          factor: 'Progress',
+                          value: risksWithFactors.reduce((sum, r) => sum + (r.factors?.progressDeviation || 0), 0) / factorCount,
+                          fullMark: 100
+                        }
+                      ];
+                    })()}>
                       <PolarGrid stroke="#e2e8f0" />
                       <PolarAngleAxis dataKey="factor" tick={{ fontSize: 9, fill: '#64748b' }} />
-                      <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 8, fill: '#94a3b8' }} />
-                      <Radar name="Risk Level" dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.4} />
-                      <Tooltip formatter={(value) => [`${value.toFixed(0)}%`, 'Avg']} />
+                      <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 8, fill: '#94a3b8' }} tickCount={5} />
+                      <Radar
+                        name="Risk Level"
+                        dataKey="value"
+                        stroke="#3b82f6"
+                        fill="#3b82f6"
+                        fillOpacity={0.5}
+                        strokeWidth={2}
+                        dot={{ r: 3, fill: '#3b82f6' }}
+                      />
+                      <Tooltip
+                        formatter={(value) => [`${typeof value === 'number' ? value.toFixed(0) : 0}%`, 'Avg Risk']}
+                        contentStyle={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '12px' }}
+                      />
                     </RadarChart>
                   </ResponsiveContainer>
                 </div>
@@ -4999,20 +6075,28 @@ Risk Factors:
 
                           {/* Activity Info */}
                           <div className="risk-activity-info">
-                            <h4 className="risk-card-title-enhanced">{risk.activity.name}</h4>
+                            <h4 className="risk-card-title-enhanced">{risk.activity.Activity_Name || risk.activity.name}</h4>
                             <div className="activity-id-badge">
                               <span className="id-icon">📋</span>
-                              <span>{risk.activity.id}</span>
+                              <span>{risk.activity.Activity_ID || risk.activity.id}</span>
+                              {risk.activity.Work_Package && <span className="work-package-badge">📦 {risk.activity.Work_Package}</span>}
                             </div>
                           </div>
 
-                          {/* Stats Grid */}
+                          {/* Basic Stats Grid */}
                           <div className="risk-stats-grid">
+                            <div className="risk-stat-item">
+                              <span className="stat-icon">📅</span>
+                              <div className="stat-details">
+                                <span className="stat-value">{risk.activity.Planned_Duration || risk.activity.duration}d</span>
+                                <span className="stat-label">Duration</span>
+                              </div>
+                            </div>
                             <div className="risk-stat-item">
                               <span className="stat-icon delay">⏱️</span>
                               <div className="stat-details">
-                                <span className={`stat-value ${risk.activity.daysDelayed > 0 ? 'danger' : 'success'}`}>
-                                  {risk.activity.daysDelayed > 0 ? '+' : ''}{risk.activity.daysDelayed}d
+                                <span className={`stat-value ${(risk.activity.Delay_Impact_days || risk.activity.daysDelayed || 0) > 0 ? 'danger' : 'success'}`}>
+                                  {(risk.activity.Delay_Impact_days || risk.activity.daysDelayed || 0) > 0 ? '+' : ''}{risk.activity.Delay_Impact_days || risk.activity.daysDelayed || 0}d
                                 </span>
                                 <span className="stat-label">Delay</span>
                               </div>
@@ -5020,50 +6104,126 @@ Risk Factors:
                             <div className="risk-stat-item">
                               <span className="stat-icon resource">👤</span>
                               <div className="stat-details">
-                                <span className="stat-value truncate">{risk.activity.resource?.split(' ')[0] || 'TBD'}</span>
+                                <span className="stat-value truncate">{(risk.activity.Resource_ID || risk.activity.resource)?.split(' ')[0] || 'TBD'}</span>
                                 <span className="stat-label">Resource</span>
                               </div>
                             </div>
                             <div className="risk-stat-item">
                               <span className="stat-icon allocation">📊</span>
                               <div className="stat-details">
-                                <span className={`stat-value ${risk.activity.allocation > 100 ? 'danger' : risk.activity.allocation > 80 ? 'warning' : 'success'}`}>
-                                  {risk.activity.allocation}%
+                                <span className={`stat-value ${(risk.activity.FTE_Allocation || risk.activity.allocation || 100) > 100 ? 'danger' : (risk.activity.FTE_Allocation || risk.activity.allocation || 100) > 80 ? 'warning' : 'success'}`}>
+                                  {risk.activity.FTE_Allocation || risk.activity.allocation || 100}%
                                 </span>
                                 <span className="stat-label">Allocation</span>
                               </div>
                             </div>
                           </div>
 
+                          {/* Schedule Info */}
+                          <div className="risk-schedule-info">
+                            <div className="schedule-row">
+                              <span className="schedule-item">🗓️ Start: {risk.activity.Planned_Start || risk.activity.startDate || 'N/A'}</span>
+                              <span className="schedule-item">🏁 Finish: {risk.activity.Planned_Finish || 'N/A'}</span>
+                              <span className="schedule-item">📌 {risk.activity.Status || risk.activity.status}</span>
+                            </div>
+                            <div className="schedule-row">
+                              <span className="schedule-item">⏳ Remaining: {risk.activity.Remaining_Duration !== undefined ? risk.activity.Remaining_Duration : Math.round((risk.activity.Planned_Duration || risk.activity.duration || 0) * (1 - (risk.activity.Percent_Complete || risk.activity.completionPercent || 0) / 100))}d</span>
+                              {risk.activity.Role && <span className="schedule-item">👔 {risk.activity.Role}</span>}
+                            </div>
+                          </div>
+
+                          {/* Baseline Info */}
+                          <div className="risk-baseline-info">
+                            <div className="baseline-header">📊 Baseline</div>
+                            <div className="baseline-grid">
+                              <span className="baseline-item"><b>Start:</b>{risk.activity.Baseline_Start || risk.activity.Planned_Start || risk.activity.startDate || 'N/A'}</span>
+                              <span className="baseline-item"><b>Finish:</b>{risk.activity.Baseline_Finish || risk.activity.Planned_Finish || 'N/A'}</span>
+                              <span className="baseline-item"><b>Duration:</b>{risk.activity.Baseline_Duration || risk.activity.Planned_Duration || risk.activity.duration || 0}d</span>
+                            </div>
+                          </div>
+
+                          {/* CPM Data */}
+                          <div className="risk-cpm-info">
+                            <div className="cpm-header">📅 CPM Schedule</div>
+                            <div className="cpm-grid">
+                              <span className="cpm-item"><b>ES:</b>{risk.activity.ES || 0}</span>
+                              <span className="cpm-item"><b>EF:</b>{risk.activity.EF || 0}</span>
+                              <span className="cpm-item"><b>LS:</b>{risk.activity.LS || 0}</span>
+                              <span className="cpm-item"><b>LF:</b>{risk.activity.LF || 0}</span>
+                              <span className="cpm-item"><b>Float:</b>{risk.activity.Total_Float_days !== undefined ? risk.activity.Total_Float_days : (risk.activity.float || 0)}d</span>
+                              <span className="cpm-item"><b>Max FTE:</b>{risk.activity.Resource_Max_FTE || 1.0}</span>
+                            </div>
+                          </div>
+
+                          {/* Dependencies */}
+                          <div className="risk-deps-info">
+                            <div className="deps-header">🔗 Dependencies</div>
+                            <div className="deps-grid">
+                              <span className="deps-item"><b>Pred:</b>{risk.activity.Predecessor_ID || 'None'}</span>
+                              <span className="deps-item"><b>Succ:</b>{risk.activity.Successor_ID || 'None'}</span>
+                              <span className="deps-item"><b>Type:</b>{risk.activity.Dependency_Type || 'FS'}</span>
+                            </div>
+                          </div>
+
+                          {/* Risk Metrics */}
+                          <div className="risk-metrics-info">
+                            <div className="metrics-header">⚠️ Risk Metrics</div>
+                            <div className="metrics-grid">
+                              <span className="metrics-item prob">
+                                <b>Prob:</b>
+                                <span className={(risk.activity.Probability || 0.5) > 0.5 ? 'danger' : 'success'}>
+                                  {((risk.activity.Probability || 0.5) * 100).toFixed(0)}%
+                                </span>
+                              </span>
+                              <span className="metrics-item impact">
+                                <b>Delay:</b>{risk.activity.Delay_Impact_days !== undefined ? risk.activity.Delay_Impact_days : (risk.activity.daysDelayed || 0)}d
+                              </span>
+                              <span className="metrics-item cost">
+                                <b>Cost:</b>${((risk.activity.Cost_Impact_of_Risk || 0) / 1000).toFixed(0)}K
+                              </span>
+                              <span className="metrics-item emv">
+                                <b>EMV:</b>${(((risk.activity.Probability || 0.5) * (risk.activity.Cost_Impact_of_Risk || 0)) / 1000).toFixed(1)}K
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Skills */}
+                          {risk.activity.Skill_Tags && (
+                            <div className="risk-skills-info">
+                              <span className="skills-label">🎯 Skills:</span>
+                              <span className="skills-value">{risk.activity.Skill_Tags}</span>
+                            </div>
+                          )}
+
                           {/* Progress Bar */}
                           <div className="risk-progress-section">
                             <div className="progress-header-mini">
                               <span>Progress</span>
-                              <span className="progress-value">{risk.activity.percentComplete || risk.activity.completionPercent || 0}%</span>
+                              <span className="progress-value">{risk.activity.Percent_Complete !== undefined ? risk.activity.Percent_Complete : (risk.activity.completionPercent || 0)}%</span>
                             </div>
                             <div className="progress-track">
                               <div
                                 className={`progress-fill-animated fill-${risk.severity}`}
-                                style={{ width: `${risk.activity.percentComplete || risk.activity.completionPercent || 0}%` }}
+                                style={{ width: `${risk.activity.Percent_Complete !== undefined ? risk.activity.Percent_Complete : (risk.activity.completionPercent || 0)}%` }}
                               ></div>
                             </div>
                           </div>
 
                           {/* Tags Section */}
                           <div className="risk-tags-section">
-                            {risk.activity.isCriticalPath && (
+                            {(risk.activity.On_Critical_Path || risk.activity.isCriticalPath) && (
                               <div className="risk-tag critical-tag">
                                 <span className="tag-icon">⚡</span>
                                 <span>Critical Path</span>
                               </div>
                             )}
-                            {risk.activity.daysDelayed > 2 && (
+                            {(risk.activity.Delay_Impact_days || risk.activity.daysDelayed || 0) > 2 && (
                               <div className="risk-tag delay-tag">
                                 <span className="tag-icon">⚠️</span>
                                 <span>Delayed</span>
                               </div>
                             )}
-                            {risk.activity.allocation > 100 && (
+                            {(risk.activity.FTE_Allocation || risk.activity.allocation || 100) > 100 && (
                               <div className="risk-tag overalloc-tag">
                                 <span className="tag-icon">🔥</span>
                                 <span>Over-allocated</span>
@@ -5080,126 +6240,59 @@ Risk Factors:
                     ))}
                   </div>
                 ) : (
-                  /* List View */
-                  <div className="risks-list-view">
+                  /* List View - Full Details with Complete Field Structure */
+                  <div className="risks-list-view-full">
                     {filteredAndSortedRisks.map((risk, index) => (
                       <div
-                        key={risk.activity.id}
-                        className={`risk-list-item risk-list-${risk.severity}`}
+                        key={risk.activity.Activity_ID || risk.activity.id}
+                        className={`risk-list-item-full risk-list-${risk.severity}`}
                         onClick={() => handleRiskClick(risk)}
                       >
-                        {/* Left accent */}
-                        <div className={`risk-list-accent accent-${risk.severity}`}></div>
+                        {/* Simplified List View - Click for full details */}
+                        <div className="list-simple-row" onClick={() => setSelectedRisk(risk)}>
+                          {/* Left: Rank & Score */}
+                          <div className="list-rank-score">
+                            <span className="list-rank">#{index + 1}</span>
+                            <div className={`list-score score-${risk.severity}`}>
+                              {risk.riskScore.toFixed(0)}
+                            </div>
+                            <span className={`list-severity sev-${risk.severity}`}>{risk.severity}</span>
+                          </div>
 
-                        {/* Rank */}
-                        <div className="risk-list-rank">
-                          <span className="rank-hash">#</span>
-                          <span className="rank-number">{index + 1}</span>
-                        </div>
+                          {/* Center: Activity Info */}
+                          <div className="list-main-info">
+                            <h4 className="list-activity-name">{risk.activity.Activity_Name || risk.activity.name}</h4>
+                            <div className="list-subtitle">
+                              <span className="list-activity-id">📋 {risk.activity.Activity_ID || risk.activity.id}</span>
+                              {risk.activity.Work_Package && <span className="list-wp">📦 {risk.activity.Work_Package}</span>}
+                              <div className="list-progress-inline">
+                                <div className="list-progress-bar-small">
+                                  <div
+                                    className={`list-progress-fill ${(risk.activity.Percent_Complete || risk.activity.completionPercent || 0) < 30 ? 'low' : (risk.activity.Percent_Complete || risk.activity.completionPercent || 0) < 70 ? 'medium' : 'high'}`}
+                                    style={{ width: `${risk.activity.Percent_Complete !== undefined ? risk.activity.Percent_Complete : (risk.activity.completionPercent || 0)}%` }}
+                                  ></div>
+                                </div>
+                                <span className="list-progress-pct">{risk.activity.Percent_Complete !== undefined ? risk.activity.Percent_Complete : (risk.activity.completionPercent || 0)}%</span>
+                              </div>
+                            </div>
+                          </div>
 
-                        {/* Score Circle */}
-                        <div className="risk-list-score">
-                          <div className="risk-score-circle-sm">
-                            <svg viewBox="0 0 100 100" className="score-ring">
-                              <circle cx="50" cy="50" r="45" className="score-ring-bg" />
-                              <circle
-                                cx="50" cy="50" r="45"
-                                className={`score-ring-fill ring-${risk.severity}`}
-                                style={{
-                                  strokeDasharray: `${(risk.riskScore / 100) * 283} 283`
-                                }}
-                              />
-                            </svg>
-                            <div className="score-text">
-                              <span className="score-value-sm">{risk.riskScore.toFixed(0)}</span>
-                            </div>
+                          {/* Key Metrics */}
+                          <div className="list-key-metrics">
+                            <span className="metric"><b>Duration:</b> {risk.activity.Planned_Duration || risk.activity.duration}d</span>
+                            <span className="metric"><b>Status:</b> {risk.activity.Status || risk.activity.status}</span>
+                            <span className={`metric ${(risk.activity.Probability || 0.5) > 0.5 ? 'text-danger' : ''}`}><b>EMV:</b> ${((risk.activity.Probability || 0.5) * (risk.activity.Cost_Impact_of_Risk || 0)).toLocaleString()}</span>
                           </div>
-                          <div className="score-label-sm">Risk Score</div>
-                        </div>
 
-                        {/* Activity Info */}
-                        <div className="risk-list-info">
-                          <div className="risk-list-title-row">
-                            <h4 className="risk-list-title">{risk.activity.name}</h4>
-                            <div className={`risk-severity-pill severity-${risk.severity}`}>
-                              <span className="severity-dot"></span>
-                              <span className="severity-text">{risk.severity}</span>
-                            </div>
+                          {/* Tags */}
+                          <div className="list-quick-tags">
+                            {(risk.activity.On_Critical_Path || risk.activity.isCriticalPath) && <span className="mini-tag critical">⚡ CP</span>}
+                            {(risk.activity.Delay_Impact_days || risk.activity.daysDelayed || 0) > 2 && <span className="mini-tag delayed">⚠️ Delay</span>}
+                            {(risk.activity.FTE_Allocation || risk.activity.allocation || 100) > 100 && <span className="mini-tag overalloc">🔥 Over</span>}
                           </div>
-                          <div className="activity-id-badge">
-                            <span className="id-icon">📋</span>
-                            <span>{risk.activity.id}</span>
-                          </div>
-                        </div>
 
-                        {/* Stats */}
-                        <div className="risk-list-stats">
-                          <div className="risk-stat-item">
-                            <span className="stat-icon delay">⏱️</span>
-                            <div className="stat-details">
-                              <span className={`stat-value ${risk.activity.daysDelayed > 0 ? 'danger' : 'success'}`}>
-                                {risk.activity.daysDelayed > 0 ? '+' : ''}{risk.activity.daysDelayed}d
-                              </span>
-                              <span className="stat-label">Delay</span>
-                            </div>
-                          </div>
-                          <div className="risk-stat-item">
-                            <span className="stat-icon resource">👤</span>
-                            <div className="stat-details">
-                              <span className="stat-value truncate">{risk.activity.resource?.split(' ')[0] || 'TBD'}</span>
-                              <span className="stat-label">Resource</span>
-                            </div>
-                          </div>
-                          <div className="risk-stat-item">
-                            <span className="stat-icon allocation">📊</span>
-                            <div className="stat-details">
-                              <span className={`stat-value ${risk.activity.allocation > 100 ? 'danger' : risk.activity.allocation > 80 ? 'warning' : 'success'}`}>
-                                {risk.activity.allocation}%
-                              </span>
-                              <span className="stat-label">Allocation</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Progress */}
-                        <div className="risk-list-progress">
-                          <div className="progress-header-mini">
-                            <span>Progress</span>
-                            <span className="progress-value">{risk.activity.percentComplete || risk.activity.completionPercent || 0}%</span>
-                          </div>
-                          <div className="progress-track">
-                            <div
-                              className={`progress-fill-animated fill-${risk.severity}`}
-                              style={{ width: `${risk.activity.percentComplete || risk.activity.completionPercent || 0}%` }}
-                            ></div>
-                          </div>
-                        </div>
-
-                        {/* Tags */}
-                        <div className="risk-list-tags">
-                          {risk.activity.isCriticalPath && (
-                            <div className="risk-tag critical-tag">
-                              <span className="tag-icon">⚡</span>
-                              <span>Critical Path</span>
-                            </div>
-                          )}
-                          {risk.activity.daysDelayed > 2 && (
-                            <div className="risk-tag delay-tag">
-                              <span className="tag-icon">⚠️</span>
-                              <span>Delayed</span>
-                            </div>
-                          )}
-                          {risk.activity.allocation > 100 && (
-                            <div className="risk-tag overalloc-tag">
-                              <span className="tag-icon">🔥</span>
-                              <span>Over-allocated</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Arrow */}
-                        <div className="risk-list-arrow">
-                          <span>→</span>
+                          {/* Arrow Button */}
+                          <div className={`list-arrow-btn arrow-${risk.severity}`}>›</div>
                         </div>
                       </div>
                     ))}
@@ -5260,95 +6353,149 @@ Risk Factors:
                 </div>
               )}
 
-              <h2>Risk Score: {selectedRisk.riskScore.toFixed(0)}/100</h2>
-              <h3>{selectedRisk.activity.name}</h3>
-
-              {/* Risk Breakdown */}
-              <div className="risk-breakdown">
-                <div className="total-risk">
-                  <div className="risk-score-large">{selectedRisk.riskScore.toFixed(0)}</div>
-                  <div className="risk-label">Risk Score</div>
-                  <span className={`severity-badge-large severity-${selectedRisk.severity}`}>
-                    {selectedRisk.severity}
-                  </span>
+              {/* Popup Header with Activity Name and Score */}
+              <div className="popup-header">
+                <div className="popup-header-left">
+                  <h2 className="popup-activity-name">{selectedRisk.activity.Activity_Name || selectedRisk.activity.name}</h2>
+                  <div className="popup-activity-meta">
+                    <span className="popup-id">📋 {selectedRisk.activity.Activity_ID || selectedRisk.activity.id}</span>
+                    {selectedRisk.activity.Work_Package && <span className="popup-wp">📦 {selectedRisk.activity.Work_Package}</span>}
+                  </div>
                 </div>
-
-                <div className="risk-factors">
-                  <h4>Risk Factor Breakdown</h4>
-                  {Object.entries(selectedRisk.factors).map(([factor, value]) => {
-                    const factorDescriptions = {
-                      scheduleDelay: 'Measures how many days the activity is behind its planned timeline',
-                      criticalPathImpact: 'Indicates if this activity directly affects the project completion date',
-                      floatConsumption: 'Shows how much schedule flexibility (buffer time) has been used up',
-                      resourceOverallocation: 'Indicates if assigned resources are stretched beyond 100% capacity',
-                      progressDeviation: 'Compares actual progress against the expected progress at this point'
-                    };
-                    return (
-                      <div key={factor} className="factor-row">
-                        <div className="factor">
-                          <span className="factor-name">{factor}</span>
-                          <div className="factor-bar">
-                            <div className="factor-fill" style={{ width: `${value}%` }}></div>
-                          </div>
-                          <span className="factor-value">{value.toFixed(0)}</span>
-                        </div>
-                        <p className="factor-description">
-                          {factorDescriptions[factor] || 'Risk factor contributing to overall score'}
-                        </p>
-                      </div>
-                    );
-                  })}
+                <div className="popup-header-right">
+                  <div className={`popup-score score-${selectedRisk.severity}`}>
+                    {selectedRisk.riskScore.toFixed(0)}
+                  </div>
+                  <span className={`popup-severity sev-${selectedRisk.severity}`}>{selectedRisk.severity}</span>
                 </div>
               </div>
 
-              {/* Activity Metadata */}
-              <div className="activity-metadata">
-                <h4>Activity Details</h4>
-                <div className="metadata-grid">
-                  <div className="metadata-item">
-                    <span className="metadata-label">Task ID</span>
-                    <span className="metadata-value">{selectedRisk.activity.id}</span>
-                    <span className="metadata-desc">Unique identifier for tracking this task</span>
+              {/* Two-Column Layout: Risk Factors + Quick Stats */}
+              <div className="popup-top-section">
+                {/* Risk Factor Breakdown */}
+                <div className="popup-risk-factors">
+                  <h4>📊 Risk Factor Breakdown</h4>
+                  {Object.entries(selectedRisk.factors).map(([factor, value]) => (
+                    <div key={factor} className="popup-factor-row">
+                      <span className="popup-factor-name">{factor.replace(/([A-Z])/g, ' $1').trim()}</span>
+                      <div className="popup-factor-bar">
+                        <div className="popup-factor-fill" style={{ width: `${value}%`, background: value > 50 ? '#ef4444' : value > 25 ? '#f59e0b' : '#22c55e' }}></div>
+                      </div>
+                      <span className="popup-factor-value">{value.toFixed(0)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Quick Risk Stats */}
+                <div className="popup-quick-stats">
+                  <h4>⚠️ Risk Summary</h4>
+                  <div className="popup-stat-grid">
+                    <div className="popup-stat">
+                      <span className="popup-stat-label">Probability</span>
+                      <span className={`popup-stat-value ${(selectedRisk.activity.Probability || 0.5) > 0.5 ? 'danger' : 'success'}`}>
+                        {((selectedRisk.activity.Probability || 0.5) * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="popup-stat">
+                      <span className="popup-stat-label">Delay Impact</span>
+                      <span className="popup-stat-value danger">{selectedRisk.activity.Delay_Impact_days || selectedRisk.activity.daysDelayed || 0}d</span>
+                    </div>
+                    <div className="popup-stat">
+                      <span className="popup-stat-label">Cost Impact</span>
+                      <span className={`popup-stat-value ${(selectedRisk.activity.Cost_Impact_of_Risk || 0) > 20000 ? 'danger' : ''}`}>
+                        ${(selectedRisk.activity.Cost_Impact_of_Risk || 0).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="popup-stat emv">
+                      <span className="popup-stat-label">💰 EMV</span>
+                      <span className="popup-stat-value highlight">
+                        ${((selectedRisk.activity.Probability || 0.5) * (selectedRisk.activity.Cost_Impact_of_Risk || 0)).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
-                  <div className="metadata-item">
-                    <span className="metadata-label">Planned Duration</span>
-                    <span className="metadata-value">{selectedRisk.activity.duration} days</span>
-                    <span className="metadata-desc">Total time allocated to complete this task</span>
+                  {/* Tags */}
+                  <div className="popup-tags">
+                    {(selectedRisk.activity.On_Critical_Path || selectedRisk.activity.isCriticalPath) && <span className="popup-tag critical">⚡ Critical Path</span>}
+                    {(selectedRisk.activity.Delay_Impact_days || selectedRisk.activity.daysDelayed || 0) > 2 && <span className="popup-tag delayed">⚠️ Delayed</span>}
+                    {(selectedRisk.activity.FTE_Allocation || selectedRisk.activity.allocation || 100) > 100 && <span className="popup-tag overalloc">🔥 Over-allocated</span>}
+                    {(selectedRisk.activity.Probability || 0.5) > 0.7 && <span className="popup-tag high-prob">📈 High Probability</span>}
+                    {(selectedRisk.activity.Cost_Impact_of_Risk || 0) > 30000 && <span className="popup-tag high-cost">💸 High Cost</span>}
                   </div>
-                  <div className="metadata-item">
-                    <span className="metadata-label">Schedule Slippage</span>
-                    <span className="metadata-value text-red">{selectedRisk.activity.daysDelayed}</span>
-                    <span className="metadata-desc">Number of days this task is running behind schedule</span>
+                </div>
+              </div>
+
+              {/* All 31 Fields - Organized in Sections */}
+              <div className="popup-all-fields">
+                {/* Section 1: Schedule Information */}
+                <div className="popup-section schedule-section">
+                  <h4>📅 Schedule</h4>
+                  <div className="popup-fields-grid">
+                    <div className="popup-field"><span className="field-label">Duration</span><span className="field-value">{selectedRisk.activity.Planned_Duration || selectedRisk.activity.duration}d</span></div>
+                    <div className="popup-field"><span className="field-label">Start</span><span className="field-value">{selectedRisk.activity.Planned_Start || selectedRisk.activity.startDate || 'N/A'}</span></div>
+                    <div className="popup-field"><span className="field-label">Finish</span><span className="field-value">{selectedRisk.activity.Planned_Finish || 'N/A'}</span></div>
+                    <div className="popup-field"><span className="field-label">Status</span><span className="field-value">{selectedRisk.activity.Status || selectedRisk.activity.status}</span></div>
+                    <div className="popup-field"><span className="field-label">Remaining</span><span className="field-value">{selectedRisk.activity.Remaining_Duration !== undefined ? selectedRisk.activity.Remaining_Duration : Math.round((selectedRisk.activity.Planned_Duration || selectedRisk.activity.duration || 0) * (1 - (selectedRisk.activity.Percent_Complete || selectedRisk.activity.completionPercent || 0) / 100))}d</span></div>
+                    <div className="popup-field"><span className="field-label">Progress</span><span className="field-value">{selectedRisk.activity.Percent_Complete !== undefined ? selectedRisk.activity.Percent_Complete : (selectedRisk.activity.completionPercent || 0)}%</span></div>
                   </div>
-                  <div className="metadata-item">
-                    <span className="metadata-label">Assigned Resource</span>
-                    <span className="metadata-value">{selectedRisk.activity.resource}</span>
-                    <span className="metadata-desc">Team member or resource responsible for this task</span>
+                </div>
+
+                {/* Section 2: Baseline & Actuals */}
+                <div className="popup-section baseline-section">
+                  <h4>📊 Baseline</h4>
+                  <div className="popup-fields-grid">
+                    <div className="popup-field"><span className="field-label">BL Start</span><span className="field-value">{selectedRisk.activity.Baseline_Start || selectedRisk.activity.Planned_Start || 'N/A'}</span></div>
+                    <div className="popup-field"><span className="field-label">BL Finish</span><span className="field-value">{selectedRisk.activity.Baseline_Finish || selectedRisk.activity.Planned_Finish || 'N/A'}</span></div>
+                    <div className="popup-field"><span className="field-label">BL Duration</span><span className="field-value">{selectedRisk.activity.Baseline_Duration || selectedRisk.activity.Planned_Duration || selectedRisk.activity.duration || 0}d</span></div>
+                    <div className="popup-field"><span className="field-label">Act. Start</span><span className="field-value">{selectedRisk.activity.Actual_Start || 'N/A'}</span></div>
+                    <div className="popup-field"><span className="field-label">Act. Finish</span><span className="field-value">{selectedRisk.activity.Actual_Finish || 'N/A'}</span></div>
+                    <div className="popup-field"><span className="field-label">Slippage</span><span className={`field-value ${(selectedRisk.activity.daysDelayed || 0) > 0 ? 'danger' : ''}`}>{selectedRisk.activity.daysDelayed || 0}d</span></div>
                   </div>
-                  <div className="metadata-item">
-                    <span className="metadata-label">Resource Utilization</span>
-                    <span className="metadata-value text-red">{selectedRisk.activity.allocation}%</span>
-                    <span className="metadata-desc">Percentage of resource capacity dedicated to this task</span>
+                </div>
+
+                {/* Section 3: Resource Information */}
+                <div className="popup-section resource-section">
+                  <h4>👤 Resources</h4>
+                  <div className="popup-fields-grid">
+                    <div className="popup-field"><span className="field-label">Resource</span><span className="field-value">{selectedRisk.activity.Resource_ID || selectedRisk.activity.resource || 'TBD'}</span></div>
+                    <div className="popup-field"><span className="field-label">Role</span><span className="field-value">{selectedRisk.activity.Role || 'N/A'}</span></div>
+                    <div className="popup-field"><span className="field-label">Allocation</span><span className={`field-value ${(selectedRisk.activity.FTE_Allocation || selectedRisk.activity.allocation || 100) > 100 ? 'danger' : ''}`}>{selectedRisk.activity.FTE_Allocation || selectedRisk.activity.allocation || 100}%</span></div>
+                    <div className="popup-field"><span className="field-label">Max FTE</span><span className="field-value">{selectedRisk.activity.Resource_Max_FTE || 1.0}</span></div>
+                    <div className="popup-field full-width"><span className="field-label">Skills</span><span className="field-value">{selectedRisk.activity.Skill_Tags || 'N/A'}</span></div>
                   </div>
-                  <div className="metadata-item">
-                    <span className="metadata-label">Schedule Buffer</span>
-                    <span className="metadata-value">{selectedRisk.activity.float} days</span>
-                    <span className="metadata-desc">Available slack time before impacting project deadline</span>
+                </div>
+
+                {/* Section 4: CPM Analysis */}
+                <div className="popup-section cpm-section">
+                  <h4>📈 CPM</h4>
+                  <div className="popup-fields-grid">
+                    <div className="popup-field"><span className="field-label">ES</span><span className="field-value cpm">{selectedRisk.activity.ES || 0}</span></div>
+                    <div className="popup-field"><span className="field-label">EF</span><span className="field-value cpm">{selectedRisk.activity.EF || 0}</span></div>
+                    <div className="popup-field"><span className="field-label">LS</span><span className="field-value cpm">{selectedRisk.activity.LS || 0}</span></div>
+                    <div className="popup-field"><span className="field-label">LF</span><span className="field-value cpm">{selectedRisk.activity.LF || 0}</span></div>
+                    <div className="popup-field"><span className="field-label">Float</span><span className="field-value">{selectedRisk.activity.Total_Float_days !== undefined ? selectedRisk.activity.Total_Float_days : (selectedRisk.activity.float || 0)}d</span></div>
+                    <div className="popup-field"><span className="field-label">Critical</span><span className={`field-value ${(selectedRisk.activity.On_Critical_Path || selectedRisk.activity.isCriticalPath) ? 'critical' : ''}`}>{(selectedRisk.activity.On_Critical_Path || selectedRisk.activity.isCriticalPath) ? '⚡ Yes' : 'No'}</span></div>
                   </div>
-                  <div className="metadata-item">
-                    <span className="metadata-label">On Critical Path</span>
-                    <span className="metadata-value">{selectedRisk.activity.isCriticalPath ? 'Yes ⚠️' : 'No'}</span>
-                    <span className="metadata-desc">Whether delays directly impact project completion</span>
+                </div>
+
+                {/* Section 5: Dependencies */}
+                <div className="popup-section dependency-section">
+                  <h4>🔗 Dependencies</h4>
+                  <div className="popup-fields-grid">
+                    <div className="popup-field"><span className="field-label">Predecessor</span><span className="field-value">{selectedRisk.activity.Predecessor_ID || 'None'}</span></div>
+                    <div className="popup-field"><span className="field-label">Successor</span><span className="field-value">{selectedRisk.activity.Successor_ID || 'None'}</span></div>
+                    <div className="popup-field"><span className="field-label">Type</span><span className="field-value">{selectedRisk.activity.Dependency_Type || 'FS'}</span></div>
+                    <div className="popup-field"><span className="field-label">Count</span><span className="field-value">{selectedRisk.activity.dependencies?.length || 0}</span></div>
                   </div>
-                  <div className="metadata-item">
-                    <span className="metadata-label">Current Status</span>
-                    <span className="metadata-value">{selectedRisk.activity.status}</span>
-                    <span className="metadata-desc">Current execution state of this task</span>
-                  </div>
-                  <div className="metadata-item">
-                    <span className="metadata-label">Blocking Tasks</span>
-                    <span className="metadata-value">{selectedRisk.activity.dependencies.length} tasks</span>
-                    <span className="metadata-desc">Number of predecessor tasks this depends on</span>
+                </div>
+
+                {/* Section 6: Risk Data */}
+                <div className="popup-section risk-section">
+                  <h4>⚠️ Risk</h4>
+                  <div className="popup-fields-grid">
+                    <div className="popup-field"><span className="field-label">Probability</span><span className={`field-value ${(selectedRisk.activity.Probability || 0.5) > 0.5 ? 'danger' : 'success'}`}>{((selectedRisk.activity.Probability || 0.5) * 100).toFixed(0)}%</span></div>
+                    <div className="popup-field"><span className="field-label">Delay</span><span className="field-value danger">{selectedRisk.activity.Delay_Impact_days || selectedRisk.activity.daysDelayed || 0}d</span></div>
+                    <div className="popup-field"><span className="field-label">Cost Impact</span><span className={`field-value ${(selectedRisk.activity.Cost_Impact_of_Risk || 0) > 20000 ? 'danger' : ''}`}>${(selectedRisk.activity.Cost_Impact_of_Risk || 0).toLocaleString()}</span></div>
+                    <div className="popup-field emv-field"><span className="field-label">💰 EMV</span><span className="field-value emv">${((selectedRisk.activity.Probability || 0.5) * (selectedRisk.activity.Cost_Impact_of_Risk || 0)).toLocaleString()}</span></div>
                   </div>
                 </div>
               </div>
@@ -5889,37 +7036,38 @@ Risk Factors:
         {/* Footer */}
         <footer className="footer" style={{
           display: 'flex',
-          flexDirection: 'column',
+          justifyContent: 'space-between',
           alignItems: 'center',
-          gap: '0.75rem',
-          padding: '1.5rem 2rem',
+          padding: '1rem 2rem',
           background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
           borderTop: '1px solid #334155'
         }}>
+          {/* Left Side - Logo and Title */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
             <img
               src={i2eLogo}
               alt="i2e Consulting"
               style={{
-                height: '55px',
+                height: '50px',
                 width: 'auto',
                 objectFit: 'contain',
                 background: 'white',
-                padding: '0.5rem 0.75rem',
-                borderRadius: '10px'
+                padding: '0.4rem 0.6rem',
+                borderRadius: '8px'
               }}
             />
             <div style={{ width: '1px', height: '30px', background: '#475569' }}></div>
             <div style={{ textAlign: 'left' }}>
-              <p style={{ margin: 0, fontSize: '0.9rem', color: '#e2e8f0', fontWeight: '600' }}>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: '#e2e8f0', fontWeight: '600' }}>
                 i2e Consulting AI Lab Hackathon 2025
               </p>
-              <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8' }}>
+              <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8' }}>
                 AI-Driven Schedule Risk Monitor
               </p>
             </div>
           </div>
-          <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b' }}>
+          {/* Right Side - Copyright */}
+          <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b', textAlign: 'right', paddingRight: '5rem' }}>
             &copy; 2025 | Hackathon Submission by <span style={{ color: '#3b82f6', fontWeight: '600' }}>Fayek Kamle</span>
           </p>
         </footer>
@@ -5931,6 +7079,7 @@ Risk Factors:
           selectedRisk={selectedRisk}
           aiInsight={aiInsight}
           storedInsights={storedInsights}
+          analysisComplete={analysisComplete}
         />
       </div>
     </ErrorBoundary>

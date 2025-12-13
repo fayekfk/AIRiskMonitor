@@ -190,9 +190,58 @@ Risk scores (0-100) are calculated using weighted factors:
 - **Purpose**: Handle CSV file uploads and parsing
 - **Features**: Drag-and-drop, file validation, data transformation
 
-#### 4.1.3 AIChatWidget Component
-- **Purpose**: Interactive AI assistant for project queries
-- **Features**: Natural language processing, email sending via chat, context-aware responses
+#### 4.1.3 AIChatWidget Component (AI Support Agent)
+- **Purpose**: Interactive AI-powered conversational assistant for project queries and actions
+- **AI Model**: OpenAI GPT-4o-mini
+- **Location**: Floating widget in bottom-right corner of the application
+
+**Core Features:**
+- **Natural Language Processing**: Understands conversational queries about project data
+- **Context-Aware Responses**: Has full access to loaded project data, risk analysis results, and generated insights
+- **Email Sending via Chat**: Detects email requests and sends formatted HTML reports automatically
+- **Conversation History**: Persists chat history in localStorage across sessions
+- **Markdown Formatting**: Renders responses with formatted headers, lists, bold, and code blocks
+
+**Data Context Available to AI:**
+- Project information (name, budget, duration, activity count)
+- All activities with full details (ID, name, duration, status, progress, delays, resources)
+- Risk analysis results (scores, severity levels, risk factors)
+- Currently selected risk details
+- Generated AI insights (current and stored)
+
+**Supported Query Types:**
+| Query Category | Example Questions |
+|----------------|-------------------|
+| Risk Summary | "What are the top 5 risks?", "How many critical risks are there?" |
+| Activity Details | "Tell me about activity A-003", "Which activities are delayed?" |
+| Critical Path | "Which activities are on the critical path?" |
+| Resource Analysis | "Which activities have resource overallocation?" |
+| Progress Tracking | "What is the overall project completion?" |
+| Comparisons | "Compare the risk factors for the top 3 risks" |
+| Recommendations | "What should I prioritize today?" |
+
+**Email Command Detection:**
+The AI agent detects email requests using pattern matching:
+```
+"send report to email@example.com"
+"email risk analysis to team@company.com"
+"send risk report to pm@company.com"
+"please send to stakeholder@org.com"
+```
+
+**Email Content Generated:**
+- Professional HTML-formatted email
+- Risk summary statistics (Critical, High, Medium, Low counts)
+- Top 5 risks table with scores, severity, and delays
+- AI insight (if available)
+- Project name and timestamp
+
+**Technical Implementation:**
+- State Management: useState hooks for messages, input, loading state
+- Persistence: localStorage for chat history (`pm_ai_chat_history`)
+- API Integration: OpenAI Chat Completions API
+- Conversation Memory: Last 10 messages sent as context to maintain coherence
+- Error Handling: Graceful fallback with error messages
 
 #### 4.1.4 EmailModal Component
 - **Purpose**: Send risk alert emails
@@ -744,14 +793,72 @@ Select a risk and click "✨ Generate AI Insight" for executive recommendations.
 3. Customize subject and message
 4. Click "Send Email"
 
-#### 14.1.10 Using AI Chat Assistant
-1. Click the floating chat icon (bottom-right)
-2. Ask questions in natural language:
-   - "What are the top 3 risks?"
-   - "Which activities are delayed?"
-   - "Show me critical path activities"
-   - "Send risk report to email@example.com"
-3. Receive AI-powered responses
+#### 14.1.10 Using AI Support Agent (Chat Assistant)
+
+The AI Support Agent is a powerful conversational interface powered by OpenAI's GPT-4o-mini model. It provides real-time assistance and can perform actions on your behalf.
+
+**Accessing the AI Agent:**
+1. Look for the floating chat button in the bottom-right corner of the screen
+2. Click the button to expand the chat window
+3. The agent greets you and explains its capabilities
+
+**Chat Interface Elements:**
+| Element | Description |
+|---------|-------------|
+| Header Bar | Shows "AI Assistant" title, has Clear button to reset conversation |
+| Message Area | Displays conversation history with user messages (right) and AI responses (left) |
+| Input Field | Text box at bottom to type your questions |
+| Send Button | Click or press Enter to submit your message |
+
+**Types of Questions You Can Ask:**
+
+*Risk Analysis Questions:*
+- "What are the top 5 risks in this project?"
+- "How many critical risks do we have?"
+- "Which activities have the highest risk scores?"
+- "Summarize the overall risk landscape"
+- "What's the average risk score?"
+
+*Activity & Schedule Questions:*
+- "Which activities are delayed?"
+- "Tell me about activity [ID or name]"
+- "What's on the critical path?"
+- "How many activities are in progress?"
+- "What's the overall completion percentage?"
+
+*Resource Questions:*
+- "Which activities have resource overallocation?"
+- "Show me activities with allocation over 100%"
+- "Who is the most over-allocated resource?"
+
+*Comparative & Analysis Questions:*
+- "Compare the top 3 risks"
+- "What are the main risk factors for [activity]?"
+- "Which risk factor is most common?"
+
+**Sending Emails via Chat:**
+The AI agent can send professional risk reports via email. Simply ask:
+- "Send risk report to pm@company.com"
+- "Email the analysis to stakeholder@example.com"
+- "Send critical risk alerts to cto@company.com"
+
+The email includes:
+- Project name and timestamp
+- Risk distribution summary (Critical, High, Medium, Low counts)
+- Top 5 risks table with scores and details
+- AI insight (if previously generated)
+
+**Conversation Tips:**
+1. **Be Specific**: "What are the top 3 critical risks?" is better than "Tell me about risks"
+2. **Use Activity Names/IDs**: Reference specific activities for detailed information
+3. **Ask Follow-ups**: The agent remembers context from previous messages
+4. **Clear When Needed**: Use the Clear button to start a fresh conversation
+5. **Check Data First**: Ensure project data is loaded before asking about it
+
+**Conversation Persistence:**
+- Chat history is saved in your browser's local storage
+- Conversations persist across page refreshes
+- Clear your browser data to reset chat history
 
 ### 14.2 Keyboard Shortcuts
 | Shortcut | Action |

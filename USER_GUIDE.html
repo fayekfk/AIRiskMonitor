@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PM Risk Monitor - User Guide</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #1e293b; background: #f8fafc; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 2rem; }
+        header { background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%); color: white; padding: 2rem; text-align: center; }
+        header h1 { font-size: 2rem; margin-bottom: 0.25rem; }
+        header p { font-size: 1rem; opacity: 0.9; }
+        .toc { background: white; border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .toc h2 { color: #1e40af; margin-bottom: 0.75rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; font-size: 1.3rem; }
+        .toc ul { list-style: none; columns: 2; }
+        .toc li { padding: 0.35rem 0; font-size: 0.9rem; }
+        .toc a { color: #3b82f6; text-decoration: none; }
+        .toc a:hover { text-decoration: underline; }
+        .section { background: white; border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0; box-shadow: 0 4px 20px rgba(0,0,0,0.08); page-break-inside: avoid; }
+        .section h2 { color: #1e40af; font-size: 1.5rem; margin-bottom: 0.75rem; border-bottom: 3px solid #3b82f6; padding-bottom: 0.5rem; }
+        .section h3 { color: #374151; font-size: 1.1rem; margin: 1rem 0 0.5rem; }
+        .section h4 { color: #6b7280; font-size: 1rem; margin: 0.75rem 0 0.35rem; }
+        .section p { margin-bottom: 0.5rem; }
+        .feature-table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+        .feature-table th, .feature-table td { padding: 0.5rem 0.75rem; text-align: left; border: 1px solid #e2e8f0; }
+        .feature-table th { background: #f1f5f9; color: #374151; font-weight: 600; }
+        .feature-table tr:nth-child(even) { background: #f8fafc; }
+        .action-list { background: #f1f5f9; border-radius: 8px; padding: 0.75rem 1.25rem; margin: 0.75rem 0; font-size: 0.9rem; }
+        .action-list li { margin: 0.35rem 0; padding-left: 0.5rem; }
+        .tip { background: #dbeafe; border-left: 4px solid #3b82f6; padding: 0.75rem; margin: 0.75rem 0; border-radius: 0 8px 8px 0; font-size: 0.9rem; }
+        .tip::before { content: "💡 "; font-weight: bold; }
+        .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 0.75rem; margin: 0.75rem 0; border-radius: 0 8px 8px 0; font-size: 0.9rem; }
+        .warning::before { content: "⚠️ "; font-weight: bold; }
+        .steps { counter-reset: step-counter; list-style: none; padding: 0; }
+        .steps li { counter-increment: step-counter; padding: 0.5rem 0 0.5rem 2.5rem; position: relative; border-left: 2px solid #e2e8f0; margin-left: 0.75rem; font-size: 0.9rem; }
+        .steps li::before { content: counter(step-counter); position: absolute; left: -0.85rem; top: 0.5rem; background: #3b82f6; color: white; width: 1.5rem; height: 1.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; }
+        .button-demo { display: inline-block; padding: 0.35rem 0.75rem; border-radius: 6px; font-weight: 600; margin: 0.15rem; font-size: 0.85rem; }
+        .btn-primary { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; }
+        .btn-success { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; }
+        .btn-warning { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; }
+        .btn-danger { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; }
+        .btn-secondary { background: #f1f5f9; color: #374151; border: 1px solid #e2e8f0; }
+        .field-category { background: linear-gradient(135deg, #f8fafc, #f1f5f9); border-radius: 8px; padding: 1rem; margin: 0.75rem 0; border-left: 4px solid #3b82f6; }
+        .field-category h4 { color: #1e40af; margin-bottom: 0.5rem; }
+        .cpm-diagram { background: #1e293b; color: #94a3b8; padding: 1rem; border-radius: 8px; font-family: monospace; margin: 0.75rem 0; font-size: 0.85rem; overflow-x: auto; }
+        .cpm-diagram .highlight { color: #22d3ee; font-weight: bold; }
+        footer { text-align: center; padding: 1.5rem; color: #64748b; font-size: 0.9rem; }
+        @media print { .section { page-break-inside: avoid; } header { background: #1e40af !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🎯 PM Risk Monitor</h1>
+        <p>User Guide - AI-Driven Schedule Risk Monitoring</p>
+    </header>
+
+    <div class="container">
+        <!-- Table of Contents -->
+        <div class="toc">
+            <h2>📑 Contents</h2>
+            <ul>
+                <li><a href="#section1">1. Overview & Key Features</a></li>
+                <li><a href="#section2">2. Quick Start Guide</a></li>
+                <li><a href="#section3">3. Data Fields Reference</a></li>
+                <li><a href="#section4">4. CPM Schedule Fields</a></li>
+                <li><a href="#section5">5. Upload & Project Management</a></li>
+                <li><a href="#section6">6. AI Risk Analysis</a></li>
+                <li><a href="#section7">7. Dashboard & Views</a></li>
+                <li><a href="#section8">8. AI Features</a></li>
+                <li><a href="#section9">9. Export & Reports</a></li>
+                <li><a href="#section10">10. Quick Reference</a></li>
+            </ul>
+        </div>
+
+        <!-- Section 1: Overview & Key Features -->
+        <div class="section" id="section1">
+            <h2>1. Overview & Key Features</h2>
+            <p>PM Risk Monitor is an AI-powered project risk analysis tool using OpenAI's GPT-4o-mini to identify and mitigate schedule risks. It evaluates activities against 5 risk factors and provides objective risk scoring.</p>
+
+            <h3>Key Features</h3>
+            <table class="feature-table">
+                <tr><th>Feature</th><th>Description</th></tr>
+                <tr><td>🤖 AI Risk Analysis</td><td>Automated risk scoring (0-100) using ChatGPT against 5 risk factors</td></tr>
+                <tr><td>📊 Dashboard</td><td>Interactive charts: pie, bar, and radar charts for risk visualization</td></tr>
+                <tr><td>💡 AI Insights</td><td>Executive summaries with situation analysis and recommendations</td></tr>
+                <tr><td>🎯 Mitigation</td><td>AI-generated recovery plans (Conservative, Moderate, Aggressive)</td></tr>
+                <tr><td>📧 Email Alerts</td><td>Send risk notifications to stakeholders via EmailJS</td></tr>
+                <tr><td>📄 PDF Reports</td><td>Export professional risk reports with jsPDF</td></tr>
+                <tr><td>💬 AI Chat</td><td>Natural language interface for project queries</td></tr>
+                <tr><td>📜 Audit Trail</td><td>Complete logging of all user actions</td></tr>
+            </table>
+
+            <div style="text-align: center; margin: 0.75rem 0;">
+                <img src="src/assets/UserGuide/1.png" alt="Main dashboard" style="max-width: 100%; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+                <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.35rem;"><em>Figure 1: Main application dashboard</em></p>
+            </div>
+        </div>
+
+        <!-- Section 2: Quick Start Guide -->
+        <div class="section" id="section2">
+            <h2>2. Quick Start Guide</h2>
+            <ol class="steps">
+                <li><strong>Load Data:</strong> Upload CSV or select a sample project</li>
+                <li><strong>Run Analysis:</strong> Click "Run AI Risk Analysis" button</li>
+                <li><strong>Review Results:</strong> Explore dashboard, charts, and risk cards</li>
+                <li><strong>Take Action:</strong> Generate insights, create mitigation plans, send alerts, or export reports</li>
+            </ol>
+
+            <div class="tip">Start with a sample project to explore features before uploading your own data.</div>
+
+            <h3>System Requirements</h3>
+            <ul class="action-list">
+                <li><strong>Browser:</strong> Chrome, Firefox, Edge, or Safari (latest)</li>
+                <li><strong>Internet:</strong> Required for AI features</li>
+                <li><strong>Screen:</strong> 1280x720 minimum, 1920x1080 recommended</li>
+            </ul>
+        </div>
+
+        <!-- Section 3: Data Fields Reference -->
+        <div class="section" id="section3">
+            <h2>3. Data Fields Reference</h2>
+            <p>PM Risk Monitor uses a comprehensive field structure organized into 8 categories. Understanding these fields helps you prepare data and interpret results.</p>
+
+            <div class="field-category">
+                <h4>📋 1. Activity Info</h4>
+                <table class="feature-table">
+                    <tr><th>Field</th><th>Description</th><th>Example</th></tr>
+                    <tr><td>Activity_ID</td><td>Unique identifier for the activity</td><td>SD-001, WP-2.1</td></tr>
+                    <tr><td>Activity_Name</td><td>Descriptive name of the activity</td><td>Backend Core Development</td></tr>
+                    <tr><td>Work_Package</td><td>Work package or phase grouping</td><td>WP-DEV, Phase-2</td></tr>
+                </table>
+            </div>
+
+            <div class="field-category">
+                <h4>📅 2. Schedule</h4>
+                <table class="feature-table">
+                    <tr><th>Field</th><th>Description</th><th>Example</th></tr>
+                    <tr><td>Planned_Start</td><td>Planned start date</td><td>2025-02-17</td></tr>
+                    <tr><td>Planned_Finish</td><td>Planned end date</td><td>2025-03-21</td></tr>
+                    <tr><td>Planned_Duration</td><td>Planned duration in days</td><td>25</td></tr>
+                    <tr><td>Actual_Start</td><td>Actual start date (if started)</td><td>2025-02-22</td></tr>
+                    <tr><td>Actual_Finish</td><td>Actual finish date (if completed)</td><td>N/A</td></tr>
+                    <tr><td>Remaining_Duration</td><td>Days remaining to complete</td><td>17</td></tr>
+                </table>
+            </div>
+
+            <div class="field-category">
+                <h4>📊 3. Baseline</h4>
+                <table class="feature-table">
+                    <tr><th>Field</th><th>Description</th><th>Example</th></tr>
+                    <tr><td>Baseline_Start</td><td>Original planned start date</td><td>2025-02-17</td></tr>
+                    <tr><td>Baseline_Finish</td><td>Original planned finish date</td><td>2025-03-21</td></tr>
+                    <tr><td>Baseline_Duration</td><td>Original planned duration</td><td>25</td></tr>
+                </table>
+                <p style="font-size: 0.85rem; margin-top: 0.5rem; color: #64748b;">💡 Baseline fields track original plan vs. current schedule to identify schedule slippage.</p>
+            </div>
+
+            <div class="field-category">
+                <h4>📈 4. Progress</h4>
+                <table class="feature-table">
+                    <tr><th>Field</th><th>Description</th><th>Example</th></tr>
+                    <tr><td>Percent_Complete</td><td>Completion percentage (0-100)</td><td>35</td></tr>
+                    <tr><td>Status</td><td>Current activity status</td><td>in-progress, completed, not-started</td></tr>
+                </table>
+            </div>
+
+            <div class="field-category">
+                <h4>🔗 5. Dependencies</h4>
+                <table class="feature-table">
+                    <tr><th>Field</th><th>Description</th><th>Example</th></tr>
+                    <tr><td>Predecessor_ID</td><td>Activities that must finish first</td><td>SD-003;SD-004</td></tr>
+                    <tr><td>Successor_ID</td><td>Activities dependent on this one</td><td>SD-009</td></tr>
+                    <tr><td>Dependency_Type</td><td>Type of dependency relationship</td><td>FS, SS, FF, SF</td></tr>
+                </table>
+                <p style="font-size: 0.85rem; margin-top: 0.5rem; color: #64748b;">
+                    <strong>Dependency Types:</strong> FS = Finish-to-Start (most common), SS = Start-to-Start, FF = Finish-to-Finish, SF = Start-to-Finish
+                </p>
+            </div>
+
+            <div class="field-category">
+                <h4>👥 6. Resources</h4>
+                <table class="feature-table">
+                    <tr><th>Field</th><th>Description</th><th>Example</th></tr>
+                    <tr><td>Resource_ID</td><td>Assigned resource identifier</td><td>DEV-001, John Smith</td></tr>
+                    <tr><td>Role</td><td>Resource role/position</td><td>Senior Developer</td></tr>
+                    <tr><td>FTE_Allocation</td><td>Resource allocation % (100 = full-time)</td><td>140 (over-allocated)</td></tr>
+                    <tr><td>Resource_Max_FTE</td><td>Maximum FTE capacity</td><td>1.5</td></tr>
+                    <tr><td>Skill_Tags</td><td>Required skills for the activity</td><td>Backend;Java;Spring</td></tr>
+                </table>
+                <div class="warning">Allocation &gt; 100% indicates over-allocation - a leading indicator of delays and burnout.</div>
+            </div>
+
+            <div class="field-category">
+                <h4>⚠️ 7. Risk Data</h4>
+                <table class="feature-table">
+                    <tr><th>Field</th><th>Description</th><th>Example</th></tr>
+                    <tr><td>Probability</td><td>Risk probability (0.0 to 1.0)</td><td>0.60 (60%)</td></tr>
+                    <tr><td>Delay_Impact_days</td><td>Potential delay in days if risk occurs</td><td>8</td></tr>
+                    <tr><td>Cost_Impact_of_Risk</td><td>Financial impact in currency</td><td>35000</td></tr>
+                </table>
+                <p style="font-size: 0.85rem; margin-top: 0.5rem; color: #64748b;">
+                    <strong>EMV (Expected Monetary Value)</strong> = Probability × Cost_Impact_of_Risk<br>
+                    Example: 0.60 × $35,000 = <strong>$21,000 EMV</strong>
+                </p>
+            </div>
+        </div>
+
+        <!-- Section 4: CPM Schedule Fields -->
+        <div class="section" id="section4">
+            <h2>4. CPM Schedule Fields Explained</h2>
+            <p>Critical Path Method (CPM) fields are used in project scheduling to determine activity timing flexibility. These values are expressed in <strong>project working days</strong>, not calendar dates.</p>
+
+            <div class="field-category">
+                <h4>📅 CPM Analysis Fields</h4>
+                <table class="feature-table">
+                    <tr><th>Field</th><th>Full Name</th><th>Description</th></tr>
+                    <tr><td><strong>ES</strong></td><td>Early Start</td><td>Earliest day the activity can start</td></tr>
+                    <tr><td><strong>EF</strong></td><td>Early Finish</td><td>Earliest day the activity can finish (ES + Duration - 1)</td></tr>
+                    <tr><td><strong>LS</strong></td><td>Late Start</td><td>Latest day activity can start without delaying project</td></tr>
+                    <tr><td><strong>LF</strong></td><td>Late Finish</td><td>Latest day activity can finish without delaying project</td></tr>
+                    <tr><td><strong>Total_Float_days</strong></td><td>Total Float</td><td>Schedule flexibility = LS - ES (or LF - EF)</td></tr>
+                    <tr><td><strong>On_Critical_Path</strong></td><td>Critical Path</td><td>Boolean: true if Float = 0 (no flexibility)</td></tr>
+                </table>
+            </div>
+
+            <h3>Understanding Float (Slack)</h3>
+            <p><strong>Float</strong> is the amount of time an activity can be delayed without affecting the project end date.</p>
+
+            <div class="cpm-diagram">
+<pre>
+Project Timeline (in days):
+Day 0 -------- Day 25 -------- Day 50 -------- Day 75
+
+<span class="highlight">Example 1: Critical Path Activity (Float = 0)</span>
+├── ES: 0   EF: 25   LS: 0   LF: 25   Float: 0d
+│   └── ⚡ NO flexibility - any delay impacts project!
+│
+<span class="highlight">Example 2: Non-Critical Activity (Float = 5)</span>
+├── ES: 10  EF: 20   LS: 15  LF: 25   Float: 5d
+│   └── ✅ Can start anywhere between Day 10-15
+</pre>
+            </div>
+
+            <h3>Why Float = 0 is Critical</h3>
+            <table class="feature-table">
+                <tr><th>Scenario</th><th>ES</th><th>EF</th><th>LS</th><th>LF</th><th>Float</th><th>Impact</th></tr>
+                <tr><td style="background:#fee2e2;">⚡ Critical Path</td><td>0</td><td>25</td><td>0</td><td>25</td><td><strong>0d</strong></td><td>Any delay = Project delay</td></tr>
+                <tr><td style="background:#d1fae5;">✅ Has Buffer</td><td>10</td><td>20</td><td>15</td><td>25</td><td><strong>5d</strong></td><td>5 days of flexibility</td></tr>
+                <tr><td style="background:#fef3c7;">⚠️ Low Float</td><td>30</td><td>45</td><td>32</td><td>47</td><td><strong>2d</strong></td><td>Very limited flexibility</td></tr>
+            </table>
+
+            <div class="tip"><strong>Key Insight:</strong> When ES = LS and EF = LF, the activity has zero float and is on the Critical Path. Any delay to this activity directly delays the entire project.</div>
+
+            <h3>Real Example from Your Data</h3>
+            <div style="background: #f1f5f9; border-radius: 8px; padding: 1rem; margin: 0.75rem 0;">
+                <p><strong>Activity:</strong> Backend Core Development (SD-006)</p>
+                <table class="feature-table">
+                    <tr><td>ES: 0</td><td>EF: 25</td><td>LS: 0</td><td>LF: 25</td><td>Float: <strong>0d</strong></td></tr>
+                </table>
+                <p style="margin-top: 0.5rem; color: #dc2626;"><strong>⚡ This activity is on the Critical Path</strong> - it must start on Day 0 and finish by Day 25, or the entire project will be delayed.</p>
+            </div>
+        </div>
+
+        <!-- Section 5: Upload & Project Management -->
+        <div class="section" id="section5">
+            <h2>5. Upload & Project Management</h2>
+
+            <h3>Upload Options</h3>
+            <table class="feature-table">
+                <tr><th>Button</th><th>Action</th></tr>
+                <tr><td><span class="button-demo btn-primary">📁 Upload CSV</span></td><td>Upload your project schedule CSV file</td></tr>
+                <tr><td><span class="button-demo btn-secondary">📥 Template</span></td><td>Download CSV template with all required fields</td></tr>
+                <tr><td><span class="button-demo btn-success">📊 Sample Data</span></td><td>Load pre-built sample project</td></tr>
+            </table>
+
+            <h3>Sample Projects Available</h3>
+            <ul class="action-list">
+                <li>🏥 <strong>Hospital EMR System</strong> - Healthcare IT with HIPAA compliance</li>
+                <li>🏦 <strong>Banking Portal</strong> - Financial services digital transformation</li>
+                <li>🛒 <strong>E-Commerce Platform</strong> - Retail online shopping platform</li>
+                <li>📱 <strong>Mobile App</strong> - iOS/Android application development</li>
+                <li>🏗️ <strong>Infrastructure</strong> - IT infrastructure modernization</li>
+            </ul>
+
+            <h3>Header Navigation</h3>
+            <table class="feature-table">
+                <tr><th>Element</th><th>Action</th></tr>
+                <tr><td>📊 Dashboard</td><td>Main risk analysis view</td></tr>
+                <tr><td>⚙️ Settings</td><td>Configure preferences</td></tr>
+                <tr><td>❓ Help</td><td>View documentation</td></tr>
+                <tr><td>📋 Data</td><td>View raw project data</td></tr>
+                <tr><td>📥 Export</td><td>Export PDF, Excel, or CSV</td></tr>
+                <tr><td>📜 Audit</td><td>View action log</td></tr>
+                <tr><td>🔄 Reset</td><td>Clear all data</td></tr>
+            </table>
+        </div>
+
+        <!-- Section 6: AI Risk Analysis -->
+        <div class="section" id="section6">
+            <h2>6. AI Risk Analysis</h2>
+            <p>The core feature of PM Risk Monitor uses OpenAI's GPT-4o-mini to evaluate each activity against 5 risk factors.</p>
+
+            <h3>Running Analysis</h3>
+            <ol class="steps">
+                <li>Load project data (CSV or sample)</li>
+                <li>Click <span class="button-demo btn-success">🚀 Run AI Risk Analysis</span></li>
+                <li>Wait 5-15 seconds for completion</li>
+                <li>Review results in dashboard</li>
+            </ol>
+
+            <h3>5 Risk Factors</h3>
+            <table class="feature-table">
+                <tr><th>Factor</th><th>Weight</th><th>Description</th></tr>
+                <tr><td>Schedule Delay</td><td>30%</td><td>Days delayed relative to planned duration</td></tr>
+                <tr><td>Critical Path Impact</td><td>25%</td><td>Impact on project completion if delayed</td></tr>
+                <tr><td>Float Consumption</td><td>20%</td><td>How much schedule buffer has been used</td></tr>
+                <tr><td>Resource Overallocation</td><td>15%</td><td>Resources assigned above 100%</td></tr>
+                <tr><td>Progress Deviation</td><td>10%</td><td>Actual vs expected progress</td></tr>
+            </table>
+
+            <h3>Severity Levels</h3>
+            <table class="feature-table">
+                <tr><th>Severity</th><th>Score</th><th>Action</th></tr>
+                <tr><td style="background:#dc2626;color:white;">🔴 Critical</td><td>70-100</td><td>Immediate intervention required</td></tr>
+                <tr><td style="background:#ea580c;color:white;">🟠 High</td><td>50-69</td><td>Urgent attention needed</td></tr>
+                <tr><td style="background:#ca8a04;color:white;">🟡 Medium</td><td>30-49</td><td>Monitor closely</td></tr>
+                <tr><td style="background:#16a34a;color:white;">🟢 Low</td><td>0-29</td><td>Continue normal monitoring</td></tr>
+            </table>
+
+            <div class="tip">If OpenAI is unavailable, a local fallback algorithm provides consistent results.</div>
+        </div>
+
+        <!-- Section 7: Dashboard & Views -->
+        <div class="section" id="section7">
+            <h2>7. Dashboard & Views</h2>
+
+            <h3>Dashboard Charts</h3>
+            <table class="feature-table">
+                <tr><th>Chart</th><th>Purpose</th></tr>
+                <tr><td>🥧 Pie Chart</td><td>Severity distribution (Critical/High/Medium/Low)</td></tr>
+                <tr><td>📊 Bar Chart</td><td>Top 8 highest-risk activities</td></tr>
+                <tr><td>🎯 Radar Chart</td><td>Average scores across 5 risk factors</td></tr>
+            </table>
+
+            <h3>Card View vs List View</h3>
+            <table class="feature-table">
+                <tr><th>View</th><th>Best For</th></tr>
+                <tr><td>🔲 Card View</td><td>Visual scanning, quick severity identification</td></tr>
+                <tr><td>≡ List View</td><td>Detailed comparison, many activities</td></tr>
+            </table>
+
+            <h3>Risk Detail Panel</h3>
+            <p>Click any risk card/row to open the detail panel with:</p>
+            <ul class="action-list">
+                <li>Risk score and severity badge</li>
+                <li>Activity details (duration, status, progress)</li>
+                <li>Risk factors radar chart</li>
+                <li>Action buttons: Generate Insight, Simulate Mitigation, Email, Export</li>
+            </ul>
+        </div>
+
+        <!-- Section 8: AI Features -->
+        <div class="section" id="section8">
+            <h2>8. AI Features</h2>
+
+            <h3>AI Insights</h3>
+            <p>Click <span class="button-demo btn-success">✨ Generate AI Insight</span> to get:</p>
+            <ul class="action-list">
+                <li>Executive summary for stakeholders</li>
+                <li>Risk assessment and root causes</li>
+                <li>Business impact analysis</li>
+                <li>Prioritized recommendations</li>
+            </ul>
+
+            <h3>Mitigation Strategies</h3>
+            <p>Click <span class="button-demo btn-primary">🎯 Simulate Mitigation</span> to generate 3 recovery options:</p>
+            <table class="feature-table">
+                <tr><th>Strategy</th><th>Cost</th><th>Timeline</th><th>Risk Reduction</th></tr>
+                <tr><td>🟢 Conservative</td><td>Low</td><td>2-4 weeks</td><td>10-25 points</td></tr>
+                <tr><td>🟡 Moderate</td><td>Medium</td><td>1-2 weeks</td><td>25-40 points</td></tr>
+                <tr><td>🔴 Aggressive</td><td>High</td><td>Days</td><td>40-60 points</td></tr>
+            </table>
+
+            <h3>AI Chat Assistant</h3>
+            <p>Click the floating chat button (bottom-right) to ask questions like:</p>
+            <ul class="action-list">
+                <li>"What are the top 5 risks?"</li>
+                <li>"Which activities are delayed?"</li>
+                <li>"Send report to pm@company.com"</li>
+                <li>"What should I prioritize today?"</li>
+            </ul>
+
+            <h3>Email Alerts</h3>
+            <p>Click <span class="button-demo btn-warning">📧 Share via Email</span> to send risk notifications to stakeholders with pre-formatted content.</p>
+        </div>
+
+        <!-- Section 9: Export & Reports -->
+        <div class="section" id="section9">
+            <h2>9. Export & Reports</h2>
+
+            <h3>Export Formats</h3>
+            <table class="feature-table">
+                <tr><th>Format</th><th>Contents</th><th>Best For</th></tr>
+                <tr><td>📄 PDF</td><td>Cover page, executive summary, charts, tables</td><td>Stakeholder presentations, compliance</td></tr>
+                <tr><td>📊 Excel</td><td>All risk data in structured columns</td><td>Further analysis, custom calculations</td></tr>
+                <tr><td>📋 CSV</td><td>Raw comma-separated data</td><td>Database imports, system integrations</td></tr>
+            </table>
+
+            <h3>Audit Trail</h3>
+            <p>Click <span class="button-demo btn-secondary">📜 Audit</span> to view logged actions:</p>
+            <ul class="action-list">
+                <li>Project loads and analysis runs</li>
+                <li>Risk views and AI insight generations</li>
+                <li>Email sends and report exports</li>
+                <li>Mitigation strategy applications</li>
+            </ul>
+            <p>Export audit log as CSV for compliance documentation.</p>
+        </div>
+
+        <!-- Section 10: Quick Reference -->
+        <div class="section" id="section10">
+            <h2>10. Quick Reference</h2>
+
+            <h3>Keyboard Shortcuts</h3>
+            <table class="feature-table">
+                <tr><th>Key</th><th>Action</th></tr>
+                <tr><td>Escape</td><td>Close any modal or panel</td></tr>
+                <tr><td>Enter</td><td>Submit forms / Send chat message</td></tr>
+                <tr><td>Tab</td><td>Navigate between elements</td></tr>
+            </table>
+
+            <h3>Color Legend</h3>
+            <table class="feature-table">
+                <tr><th>Color</th><th>Severity</th><th>Score</th><th>Action</th></tr>
+                <tr><td style="background:#dc2626;color:white;">Red</td><td>Critical</td><td>70-100</td><td>Immediate intervention</td></tr>
+                <tr><td style="background:#ea580c;color:white;">Orange</td><td>High</td><td>50-69</td><td>Urgent attention</td></tr>
+                <tr><td style="background:#ca8a04;color:white;">Yellow</td><td>Medium</td><td>30-49</td><td>Monitor closely</td></tr>
+                <tr><td style="background:#16a34a;color:white;">Green</td><td>Low</td><td>0-29</td><td>Normal monitoring</td></tr>
+            </table>
+
+            <h3>Common Workflows</h3>
+            <table class="feature-table">
+                <tr><th>Task</th><th>Steps</th><th>Time</th></tr>
+                <tr><td>Analyze Project</td><td>Upload CSV → Run Analysis → Review Dashboard</td><td>2-5 min</td></tr>
+                <tr><td>Get Risk Insight</td><td>Click Risk → Generate AI Insight</td><td>30-60 sec</td></tr>
+                <tr><td>Create Mitigation</td><td>Click Risk → Simulate Mitigation → Apply Strategy</td><td>1-2 min</td></tr>
+                <tr><td>Send Alert</td><td>Click Risk → Share via Email → Send</td><td>1-2 min</td></tr>
+                <tr><td>Export Report</td><td>Click Export → Select Format (PDF/Excel/CSV)</td><td>10-30 sec</td></tr>
+            </table>
+
+            <h3>Troubleshooting</h3>
+            <table class="feature-table">
+                <tr><th>Issue</th><th>Solution</th></tr>
+                <tr><td>Analysis not starting</td><td>Check project data is loaded. Refresh page.</td></tr>
+                <tr><td>AI features not working</td><td>Verify internet connection. Fallback will be used.</td></tr>
+                <tr><td>Email not sending</td><td>Check email format (must include @domain.com)</td></tr>
+                <tr><td>Data not importing</td><td>Verify CSV format matches template</td></tr>
+            </table>
+
+            <div class="tip"><strong>Pro Tip:</strong> Use the AI Chat for quick queries like "How many critical risks?" instead of navigating through the interface.</div>
+        </div>
+    </div>
+
+    <footer>
+        <p><strong>PM Risk Monitor</strong> - AI-Driven Schedule Risk Monitoring</p>
+        <p>i2e Consulting AI Lab Hackathon 2025</p>
+        <p>Developed by Fayek Kamle</p>
+        <p style="margin-top: 1rem; font-size: 0.9rem;">
+            <em>This guide contains placeholder areas for screenshots. Replace each placeholder with an actual screenshot from the running application.</em>
+        </p>
+    </footer>
+</body>
+</html>
+
