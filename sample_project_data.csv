@@ -1,0 +1,12 @@
+ID,Name,Duration,Dependencies,Resource,StartDate,Status,DaysDelayed,Allocation,CompletionPercent,Type
+A-001,Requirements Gathering & Analysis,8,,R-001,2025-01-01,completed,0,100,100,Planning
+A-002,HIPAA Compliance Review,12,A-001,R-005,2025-01-09,completed,0,90,100,Compliance
+A-003,System Architecture Design,15,A-001,R-003,2025-01-09,in-progress,3,120,65,Design
+A-004,Database Schema Development,10,A-003,R-008,2025-01-24,in-progress,5,135,45,Development
+A-005,Backend API Development,20,A-003|A-004,R-002,2025-02-03,not-started,0,140,0,Development
+A-006,Frontend UI Development,18,A-003,2025-02-03,not-started,0,110,0,Development
+A-007,Patient Data Migration Module,14,A-004,R-009,2025-02-23,not-started,0,125,0,Data Migration
+A-008,Security & Authentication Layer,12,A-005,R-005,2025-02-23,not-started,0,95,0,Security
+A-009,Integration Testing,16,A-005|A-006|A-007,R-011,2025-03-07,not-started,0,100,0,Testing
+A-010,User Acceptance Testing,10,A-009,R-001,2025-03-23,not-started,0,85,0,Testing
+A-011,Production Deployment,5,A-010,R-002,2025-04-02,not-started,0,100,0,Deployment

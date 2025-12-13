@@ -1,0 +1,21 @@
+ID,Name,Duration,Dependencies,Resource,StartDate,Status,DaysDelayed,Allocation,CompletionPercent,Type
+A-001,Project Kickoff & Planning,5,,R-001,2025-01-06,completed,0,80,100,Planning
+A-002,Stakeholder Requirements Gathering,10,A-001,R-003,2025-01-11,completed,1,90,100,Requirements
+A-003,Technical Feasibility Study,8,A-001,R-007,2025-01-11,completed,0,100,100,Analysis
+A-004,HIPAA & Security Compliance Review,12,A-002,R-012,2025-01-21,in-progress,4,115,60,Compliance
+A-005,System Architecture Design,15,A-002|A-003,R-008,2025-01-31,in-progress,6,145,55,Design
+A-006,Database Schema Design,10,A-005,R-009,2025-02-15,not-started,0,130,0,Database
+A-007,Backend API Development - Phase 1,18,A-005|A-006,R-004,2025-02-25,not-started,0,150,0,Development
+A-008,Frontend React Components,20,A-005,R-006,2025-02-15,not-started,0,125,0,Development
+A-009,Patient Portal Interface,16,A-008,R-010,2025-03-07,not-started,0,110,0,Development
+A-010,EHR Integration Module,14,A-006|A-007,R-014,2025-03-15,not-started,0,140,0,Integration
+A-011,Payment Gateway Integration,8,A-007,R-011,2025-03-15,not-started,0,95,0,Integration
+A-012,Security Penetration Testing,10,A-007|A-008,R-012,2025-03-25,not-started,0,100,0,Security
+A-013,Load & Performance Testing,12,A-007|A-008,R-013,2025-04-04,not-started,0,105,0,Testing
+A-014,User Acceptance Testing - Wave 1,8,A-009|A-010,R-003,2025-04-16,not-started,0,90,0,Testing
+A-015,Bug Fixes & Refinements,10,A-014,R-004|R-006,2025-04-24,not-started,0,120,0,Development
+A-016,Documentation & Training Materials,7,A-009,R-015,2025-04-24,not-started,0,85,0,Documentation
+A-017,Staff Training - Healthcare Workers,6,A-016,R-003,2025-05-01,not-started,0,80,0,Training
+A-018,Final Security Audit,5,A-012|A-015,R-012,2025-05-07,not-started,0,100,0,Compliance
+A-019,Production Environment Setup,4,A-018,R-002,2025-05-12,not-started,0,110,0,Infrastructure
+A-020,Go-Live Deployment,3,A-017|A-019,R-001|R-002,2025-05-16,not-started,0,100,0,Deployment
