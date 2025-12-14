@@ -14,6 +14,7 @@ import i2eLogo from './assets/i2eLogo.webp';
 // ===================================
 import auditLogger from './utils/auditLogger';
 import pdfGenerator from './utils/pdfGenerator';
+import { callOpenAI, extractContent } from './utils/openaiClient';
 
 // ===================================
 // EMAILJS CONFIGURATION
@@ -27,7 +28,8 @@ const EMAILJS_CONFIG = {
 // ===================================
 // OPENAI (CHATGPT) CONFIGURATION
 // ===================================
-const OPENAI_API_KEY = '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';
+// API key is now securely stored in Vercel backend
+// No need to expose it in frontend code!
 
 // ===================================
 // CONSTANTS & CONFIGURATION
@@ -2385,32 +2387,22 @@ Guidelines:
 - If discussing critical risks, emphasize urgency appropriately
 - If user asks to send email but doesn't provide an address, ask for the email address`;
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
-            { role: 'user', content: userInput }
-          ],
-          temperature: 0.7,
-          max_tokens: 1000
-        })
+      // Use secure API proxy instead of direct OpenAI call
+      const chatMessages = [
+        { role: 'system', content: systemPrompt },
+        ...messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
+        { role: 'user', content: userInput }
+      ];
+
+      const data = await callOpenAI(chatMessages, {
+        model: 'gpt-4o-mini',
+        temperature: 0.7,
+        max_tokens: 1000
       });
 
-      if (!response.ok) {
-        throw new Error('API request failed');
-      }
-
-      const data = await response.json();
       const assistantMessage = {
         role: 'assistant',
-        content: data.choices[0].message.content
+        content: extractContent(data)
       };
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
@@ -3382,18 +3374,10 @@ function App() {
         Cost_Impact_of_Risk: a.Cost_Impact_of_Risk || 0
       }));
 
-      // Call ChatGPT API for risk analysis
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{
-            role: 'system',
-            content: `You are an expert project risk analyst. Analyze project activities and provide risk scores.
+      // Call ChatGPT API for risk analysis using secure proxy
+      const riskAnalysisMessages = [{
+        role: 'system',
+        content: `You are an expert project risk analyst. Analyze project activities and provide risk scores.
 
 You MUST respond with a valid JSON array. Each object must have:
 - id: the activity id
@@ -3414,29 +3398,26 @@ Also factor in:
 - Dependency_Type: Non-FS dependencies may add complexity
 
 Respond ONLY with the JSON array, no other text.`
-          }, {
-            role: 'user',
-            content: `Analyze these ${activitiesWithCP.length} project activities for risk:
+      }, {
+        role: 'user',
+        content: `Analyze these ${activitiesWithCP.length} project activities for risk:
 
 ${JSON.stringify(activitiesSummary, null, 2)}
 
 Return a JSON array with risk scores for each activity.`
-          }],
-          max_tokens: 2000,
-          temperature: 0.3
-        })
+      }];
+
+      const data = await callOpenAI(riskAnalysisMessages, {
+        model: 'gpt-4o-mini',
+        max_tokens: 2000,
+        temperature: 0.3
       });
 
-      if (!response.ok) {
-        throw new Error('ChatGPT API request failed');
-      }
-
-      const data = await response.json();
       let aiRiskScores;
 
       try {
         // Parse the JSON response from ChatGPT
-        const content = data.choices[0].message.content.trim();
+        const content = extractContent(data).trim();
         // Handle markdown code blocks if present
         const jsonContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         aiRiskScores = JSON.parse(jsonContent);
@@ -3582,20 +3563,13 @@ Return a JSON array with risk scores for each activity.`
     });
 
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{
-            role: 'system',
-            content: 'You are an expert project management consultant specializing in risk analysis and recovery strategies. Provide concise, actionable executive insights.'
-          }, {
-            role: 'user',
-            content: `Analyze this critical project risk and provide an executive summary.
+      // Use secure API proxy for AI insight generation
+      const insightMessages = [{
+        role: 'system',
+        content: 'You are an expert project management consultant specializing in risk analysis and recovery strategies. Provide concise, actionable executive insights.'
+      }, {
+        role: 'user',
+        content: `Analyze this critical project risk and provide an executive summary.
 
 Activity: ${selectedRisk.activity.name} (${selectedRisk.activity.id})
 Risk Score: ${selectedRisk.riskScore.toFixed(0)}/100
@@ -3638,19 +3612,15 @@ Provide a concise executive summary with:
 4. ⏰ URGENCY LEVEL: How quickly action is needed
 
 Keep it under 350 words, use bullet points and emojis for visual clarity, and be specific with numbers.`
-          }],
-          max_tokens: 1000,
-          temperature: 0.7
-        })
+      }];
+
+      const data = await callOpenAI(insightMessages, {
+        model: 'gpt-4o-mini',
+        max_tokens: 1000,
+        temperature: 0.7
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || 'ChatGPT API request failed');
-      }
-
-      const data = await response.json();
-      const insight = data.choices[0].message.content;
+      const insight = extractContent(data);
       const fullInsight = `🤖 Generated by ChatGPT (GPT-4o-mini)\n\n${insight}`;
 
       setAiInsight(fullInsight);
@@ -3853,17 +3823,10 @@ Note: Using fallback template. For real-time AI analysis, ensure OpenAI API key 
     const activity = selectedRisk.activity;
 
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{
-            role: 'system',
-            content: `You are an expert project risk recovery consultant. Generate exactly 3 recovery strategies for project risks.
+      // Use secure API proxy for mitigation strategies
+      const strategiesMessages = [{
+        role: 'system',
+        content: `You are an expert project risk recovery consultant. Generate exactly 3 recovery strategies for project risks.
 
 You MUST respond with a valid JSON object containing an array of 3 strategies. Each strategy must have:
 - name: short name for the strategy (e.g., "Add Resource", "Fast-Track", "Reduce Scope")
@@ -3886,9 +3849,9 @@ Make the first strategy "RECOMMENDED" (best overall), second "LOWER_COST", third
 Tailor strategies to the specific activity and its risk factors.
 
 Respond ONLY with the JSON object like: {"strategies": [...]}`
-          }, {
-            role: 'user',
-            content: `Generate 3 recovery strategies for this project risk:
+      }, {
+        role: 'user',
+        content: `Generate 3 recovery strategies for this project risk:
 
 Activity: ${activity.name}
 Activity ID: ${activity.id}
@@ -3930,18 +3893,15 @@ Risk Factors:
 - Progress Deviation: ${selectedRisk.factors.progressDeviation.toFixed(0)}%
 
 Consider the Cost Impact when estimating strategy costs - ensure ROI is positive.`
-          }],
-          temperature: 0.7,
-          max_tokens: 1500
-        })
+      }];
+
+      const data = await callOpenAI(strategiesMessages, {
+        model: 'gpt-4o-mini',
+        temperature: 0.7,
+        max_tokens: 1500
       });
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const content = data.choices[0].message.content.trim();
+      const content = extractContent(data).trim();
 
       // Parse the JSON response
       let parsed;
