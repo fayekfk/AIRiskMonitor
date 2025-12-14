@@ -1,0 +1,25 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="bracketGrad" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00e5cc"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0" y1="0" x2="32" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00d4aa"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="32" height="32" rx="6" fill="url(#bgGradient)"/>
+  <!-- Bracket Frame -->
+  <path d="M5 6 L5 26 L10 26" stroke="url(#bracketGrad)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M19 6 L19 26" stroke="url(#bracketGrad)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M5 6 L15 6" stroke="url(#bracketGrad)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- AI Text -->
+  <text x="8" y="22" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="url(#textGrad)">AI</text>
+</svg>
+
