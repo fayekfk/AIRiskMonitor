@@ -1,5 +1,13 @@
 # PM Risk Monitor - Application Documentation
 
+## 🔗 Quick Links
+- **🌐 Live Application:** [https://fayekfk.github.io/AIRiskMonitor/](https://fayekfk.github.io/AIRiskMonitor/)
+- **🎥 Demo Video:** [https://youtu.be/AnaLxyZlh9g](https://youtu.be/AnaLxyZlh9g)
+- **📚 User Guide:** [https://fayekfk.github.io/AIRiskMonitor/USER_GUIDE.html](https://fayekfk.github.io/AIRiskMonitor/USER_GUIDE.html)
+- **💻 GitHub Repository:** [https://github.com/fayekfk/AIRiskMonitor](https://github.com/fayekfk/AIRiskMonitor)
+
+---
+
 ## Table of Contents
 1. [Application Overview](#1-application-overview)
 2. [Application Architecture](#2-application-architecture)
