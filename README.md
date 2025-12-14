@@ -12,6 +12,8 @@ Detect hidden project risks 2-3 weeks before they impact your timeline. Get AI-p
 
 **🎥 Watch Demo Video:** [https://youtu.be/s9Ag1L7a1aU](https://youtu.be/s9Ag1L7a1aU)
 
+**📚 User Guide:** [https://fayekfk.github.io/AIRiskMonitor/USER_GUIDE.html](https://fayekfk.github.io/AIRiskMonitor/USER_GUIDE.html)
+
 ---
 
 ## ✨ Key Features
@@ -177,6 +179,7 @@ This project was created for the I2E Hackathon 2025.
 
 - **Live App:** [https://fayekfk.github.io/AIRiskMonitor/](https://fayekfk.github.io/AIRiskMonitor/)
 - **Demo Video:** [https://youtu.be/s9Ag1L7a1aU](https://youtu.be/s9Ag1L7a1aU)
+- **User Guide:** [https://fayekfk.github.io/AIRiskMonitor/USER_GUIDE.html](https://fayekfk.github.io/AIRiskMonitor/USER_GUIDE.html)
 - **GitHub Repo:** [https://github.com/fayekfk/AIRiskMonitor](https://github.com/fayekfk/AIRiskMonitor)
 - **API Backend:** [https://air-isk-monitor-api.vercel.app](https://air-isk-monitor-api.vercel.app)
 
